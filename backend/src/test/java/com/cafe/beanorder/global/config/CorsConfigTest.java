@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 
 import java.util.List;
 
@@ -39,7 +40,8 @@ class CorsConfigTest {
 
 	@BeforeEach
 	void set_up() {
-		mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+		// CORS 는 Spring Security 의 CorsFilter 가 처리하므로 실제 보안 필터 체인을 포함한다.
+		mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).apply(springSecurity()).build();
 	}
 
 	@Test
@@ -102,7 +104,7 @@ class CorsConfigTest {
 		mockMvc.perform(options(ITEMS_URL)
 				.header(HttpHeaders.ORIGIN, VITE_ORIGIN)
 				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
-				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization"))
+				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "x-custom-header"))
 			.andExpect(status().isForbidden())
 			.andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN))
 			.andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS));
