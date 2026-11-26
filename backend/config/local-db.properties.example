@@ -1,0 +1,3 @@
+# 이 파일을 local-db.properties 로 복사한 뒤 비밀번호를 정한다. (local-db.properties 는 Git 제외)
+# 주의: H2 파일 DB는 처음 생성될 때의 비밀번호로 고정된다.
+LOCAL_DB_PASSWORD=change-me

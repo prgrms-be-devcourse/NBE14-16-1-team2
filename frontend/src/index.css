@@ -1,0 +1,43 @@
+:root {
+  font-family: system-ui, 'Malgun Gothic', sans-serif;
+  color: #222;
+  background: #fff;
+}
+
+body {
+  margin: 0;
+}
+
+.layout-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #ddd;
+}
+
+.layout-title {
+  font-weight: bold;
+}
+
+.layout-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.layout-nav a {
+  color: #555;
+  text-decoration: none;
+}
+
+.layout-nav a.active {
+  color: #000;
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.layout-main {
+  padding: 24px;
+}
