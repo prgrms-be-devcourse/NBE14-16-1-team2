@@ -2,7 +2,7 @@
 
 회원가입 없이 이메일만으로 원두를 주문하고, 관리자가 상품과 주문·배송 상태를 관리하는 웹 서비스입니다.
 
-> **현재 단계: 환경 세팅 완료 (초기 환경 구성, 공통 응답·예외 처리·CORS) · 공통 엔티티 구성(WBS 2.4) 리뷰 전**
+> **현재 단계: 환경 세팅 완료 (초기 환경 구성, 공통 응답·예외 처리·CORS, 공통 엔티티)**
 > 이 문서의 비즈니스 규칙·ERD·API 목록은 **후속 개발 기준**입니다. 상품·주문 업무 API는 아직 구현되지 않았습니다.
 > 지금까지 구현된 것은 [3. 주요 기능과 구현 현황](#3-주요-기능과-구현-현황)에서 ✅로 표시한 항목뿐입니다.
 
@@ -98,7 +98,7 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 | 공통 레이아웃·내비게이션 | ✅ |
 | 공통 오류 응답(`code`/`message`)·공통 예외 처리 | ✅ |
 | `/api/**` CORS 설정 | ✅ |
-| 공통 엔티티 `Product`·`Order`·`OrderItem`, 상품 생성·수정일 JPA Auditing | 🟨 |
+| 공통 엔티티 `Product`·`Order`·`OrderItem`, 상품 생성·수정일 JPA Auditing | ✅ |
 
 ### 고객 기능
 
@@ -543,7 +543,7 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 | 미확인 | 환경 세팅 | Spring Boot 프로젝트 생성 및 DB 연결 | 미확인 | 11.26 ※ | 11.26 ※ | 완료 (PR #1 리뷰 후 `dev` 머지) | `backend/` |
 | 미확인 | 환경 세팅 | React 프로젝트 생성 및 라우팅 | 미확인 | 11.26 ※ | 11.26 ※ | 완료 (PR #1 리뷰 후 `dev` 머지) | `frontend/` |
 | 2.3 | 환경 세팅 | 공통 응답·예외 처리·CORS 설정 | D | 11.27 | 11.27 | 완료 (PR #2 `dev` 머지) | 공통 모듈 (`global/error`, `global/config`) |
-| 2.4 | 환경 세팅 | 공통 엔티티 구성 (Product, Order, OrderItem) | 미확인 | 미확인 | 미확인 | 코드 작성·테스트 통과, PR 생성·리뷰·머지 전 | `product`·`order` 엔티티, `JpaAuditingConfig` |
+| 2.4 | 환경 세팅 | 공통 엔티티 구성 (Product, Order, OrderItem) | 미확인 | 미확인 | 미확인 | 완료 (PR #4 `dev` 머지) | `product`·`order` 엔티티, `JpaAuditingConfig` |
 
 ※ WBS 번호·담당·계획 일정이 확인되지 않아 실제 작업일을 적었습니다.
 
