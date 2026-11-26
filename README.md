@@ -2,8 +2,8 @@
 
 회원가입 없이 이메일만으로 원두를 주문하고, 관리자가 상품과 주문·배송 상태를 관리하는 웹 서비스입니다.
 
-> **현재 단계: 초기 개발 환경 세팅**
-> 이 문서의 비즈니스 규칙·ERD·API 정책은 **후속 개발 기준**입니다.
+> **현재 단계: 환경 세팅 (초기 환경 구성 완료, 공통 응답·예외 처리·CORS 작업 중)**
+> 이 문서의 비즈니스 규칙·ERD·API 목록은 **후속 개발 기준**입니다. 상품·주문 업무 API는 아직 구현되지 않았습니다.
 > 지금까지 구현된 것은 [3. 주요 기능과 구현 현황](#3-주요-기능과-구현-현황)에서 ✅로 표시한 항목뿐입니다.
 
 ## 📌 목차
@@ -68,7 +68,9 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 ### 2-4. 취소 정책
 - **고객의 주문 취소는 허용하지 않습니다.**
 - **병합된 주문의 일부 상품만 취소하는 것은 허용하지 않습니다.**
-- 관리자가 언제 주문을 수정·전체 취소할 수 있는지는 미확정입니다.
+- API 명세 기준 관리자의 수동 상태 변경은 **`ORDERED` → `CANCELLED`만** 가능합니다.
+- API 명세 기준 관리자 주문 수정 대상은 **주소·우편번호·수량**입니다.
+- 관리자가 **어떤 상태에서** 주문을 수정·전체 취소할 수 있는지는 미확정입니다.
 
 ### 2-5. 상품 삭제와 주문 스냅샷
 - 상품은 행을 지우지 않고 `is_deleted` 플래그로 **논리 삭제**합니다.
@@ -81,9 +83,9 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 
 ## 3. 주요 기능과 구현 현황
 
-상태: ✅ 완료 · ⬜ 예정
+상태: ✅ 완료(머지됨) · 🟨 구현·테스트 통과, 리뷰·머지 전 · ⬜ 예정
 
-### 환경 세팅 (이번 작업)
+### 환경 세팅
 
 | 항목 | 상태 |
 |---|---|
@@ -94,6 +96,8 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 | React + Vite 프로젝트 생성 | ✅ |
 | 기본 라우팅 (`/customer`, `/admin/products`, `/admin/orders`, `/` → `/customer`, 404) | ✅ |
 | 공통 레이아웃·내비게이션 | ✅ |
+| 공통 오류 응답(`code`/`message`)·공통 예외 처리 | 🟨 |
+| `/api/**` CORS 설정 | 🟨 |
 
 ### 고객 기능
 
@@ -116,8 +120,7 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 
 | 기능 | 상태 |
 |---|---|
-| 공통 예외 처리 (`code`/`message` 오류 본문) | ⬜ |
-| CORS 설정 및 프론트·백엔드 API 연동 | ⬜ |
+| 프론트·백엔드 API 연동 (브라우저에서 실제 API 호출) | ⬜ (CORS만 설정됨, 연동 미확인) |
 
 > ⚠️ 현재 `/admin/*` 화면은 **URL로 화면만 구분**할 뿐 인증·권한 검사가 없습니다. 누구나 접근할 수 있습니다.
 
@@ -153,19 +156,21 @@ MySQL·Docker·Redis는 사용하지 않습니다.
 flowchart LR
     C["고객 화면<br/>/customer"] --> FE["React SPA<br/>(Vite, :5173)"]
     A["관리자 화면<br/>/admin/*"] --> FE
-    FE -. "HTTP/JSON (연동 예정)" .-> BE["Spring Boot API<br/>(:8080)"]
+    FE -. "HTTP/JSON + CORS (연동 예정)" .-> BE["Spring Boot API<br/>(:8080)"]
     BE --> DB[("H2<br/>local: 파일 / test: 인메모리")]
     SCH["배송 스케줄러 (예정)"] -.-> BE
 ```
 
 | 계층 | 역할 |
 |---|---|
-| Controller | 요청 검증(Validation), 응답 변환 (예정) |
-| Service | 배송 그룹 계산, 주문 병합, 상태 전환 등 비즈니스 규칙 (예정) |
+| Controller | 요청 검증(Validation), 실제 DTO 반환 (예정) |
+| Service | 배송 그룹 계산, 주문 병합, 상태 전환 등 비즈니스 규칙. 업무 오류는 `BusinessException` (예정) |
 | Repository | Spring Data JPA로 DB 접근 |
 | DB | H2 (local 프로필은 `backend/data/`의 파일 DB) |
+| global/error | `GlobalExceptionHandler`가 모든 예외를 `code`/`message` 오류 응답으로 변환 |
+| global/config | `/api/**` CORS 설정 |
 
-> 현재 프론트와 백엔드는 **연결되어 있지 않습니다.** (CORS·API 호출 미구현)
+> `/api/**` CORS는 설정했지만, 프론트에서 실제 API를 호출하는 **연동은 아직 하지 않았습니다.**
 
 ---
 
@@ -220,7 +225,7 @@ flowchart LR
 - **테이블 이름 `orders`**: `ORDER`는 SQL 예약어라 복수형을 사용합니다.
 - **주문 당시 값 스냅샷**: `order_item.product_name`, `order_price`를 따로 저장해 상품 정보가 바뀌어도 주문 내역이 유지됩니다.
 - **배송 예정일 저장**: 오후 2시 기준 계산 결과를 `delivery_date`에 저장해, 배송 그룹 조회와 스케줄러 전환을 이 컬럼으로 처리합니다.
-- **상품 논리 삭제**: `is_deleted`로 숨기고 행은 남겨, 과거 주문이 참조하는 상품을 보존합니다.
+- **상품 논리 삭제**: `is_deleted`로 숨기고 행은 남겨, 과거 주문이 참조하는 상품을 보존합니다. (API 명세의 `is_delete` 표기와 통일 필요 → [14-2](#14-2-명세-보완-필요-사항))
 
 ### 주문 취소 ≠ 주문 행 물리 삭제
 
@@ -236,19 +241,135 @@ flowchart LR
 
 ## 7. API·응답 정책
 
-> 아래는 **응답 형식 정책**이며 아직 구현되지 않았습니다. 엔드포인트 목록은 API 확정 후 추가합니다.
+### 7-1. 전체 API
 
-- `success`/`data` 같은 **공통 래퍼 없이** HTTP 상태 코드와 실제 데이터를 그대로 반환합니다.
-- 삭제 성공은 **`204 No Content`**, 본문 없음.
-- JSON 필드명은 **camelCase**입니다.
-- 오류 응답 본문은 `code`와 `message`만 사용합니다.
+API 명세 기준 상품 5개, 주문 6개입니다. **11개 모두 아직 구현되지 않았습니다.**
+요청·응답 필드는 명세가 완성되지 않아 **모두 미확정**입니다. ([14-2. 명세 보완 필요 사항](#14-2-명세-보완-필요-사항) 참고)
 
-```json
-{
-  "code": "PRODUCT_NOT_FOUND",
-  "message": "상품을 찾을 수 없습니다."
+| 구분 | 기능 | 사용자 | Method | URL | 성공 코드 | 설명 | 구현 상태 | 상세 명세 링크 |
+|---|---|---|---|---|---|---|---|---|
+| 상품 | 상품 목록 조회 | 고객 | `GET` | `/api/products` | 200 | 상품 목록 조회 · 요청·응답 미확정 | ⬜ 미구현 | — |
+| 상품 | 상품 상세 조회 | 고객 | `GET` | `/api/products/{productId}` | 200 | 상품 1건 조회 · 요청·응답 미확정 | ⬜ 미구현 | — |
+| 상품 | 상품 등록 | 관리자 | `POST` | `/api/admin/products` | 201 | 상품 등록 · 요청·응답 미확정 | ⬜ 미구현 | — |
+| 상품 | 상품 수정 | 관리자 | `PUT` | `/api/admin/products/{productId}` | 200 | 상품 수정 · 요청·응답 미확정 | ⬜ 미구현 | — |
+| 상품 | 상품 삭제 | 관리자 | `DELETE` | `/api/admin/products/{productId}` | 204 | 실제 삭제 대신 삭제 플래그 수정 | ⬜ 미구현 | — |
+| 주문 | 주문 생성 | 고객 | `GET` ⚠️ | `/api/orders` | 201 | 장바구니에서 주문 생성 · **Method 확인 필요** · 요청·응답 미확정 | ⬜ 미구현 | — |
+| 주문 | 주문 목록 조회 | 관리자 | `GET` | `/api/admin/orders` | 200 | 관리자 주문 목록 · 요청·응답 미확정 | ⬜ 미구현 | — |
+| 주문 | 주문 상세 조회 | 관리자 | `GET` | `/api/admin/orders/{orderId}` | 200 | 관리자 주문 1건 조회 · 요청·응답 미확정 | ⬜ 미구현 | — |
+| 주문 | 주문 수정 | 관리자 | `PUT` | `/api/admin/orders/{orderId}` | 200 | 주소·우편번호·수량 수정 (허용 상태 미확정) | ⬜ 미구현 | — |
+| 주문 | 주문 상태 변경 | 관리자 | `PUT` | `/api/admin/orders/{orderId}/status` | 200 | 수동 변경은 `ORDERED` → `CANCELLED`만 | ⬜ 미구현 | — |
+| 주문 | 주문 삭제 | 관리자 | `DELETE` | `/api/admin/orders/{orderId}` | 204 | 삭제 방식·허용 상태 **확인 필요** | ⬜ 미구현 | — |
+
+- 상세 명세 링크는 확인된 링크가 없어 비워 두었습니다.
+- `/admin` 경로는 화면·API 구분일 뿐이며 **관리자 인증은 아직 없습니다.**
+- 장바구니 화면 이동은 React 라우팅·프론트 state의 역할이고, `/api/orders`는 주문 생성만 담당하도록 구분합니다.
+
+### 7-2. 공통 응답
+
+`success`/`data` 같은 **성공 래퍼를 쓰지 않습니다.** 컨트롤러는 실제 DTO(또는 목록)를 그대로 반환하고, 상태 코드로 결과를 구분합니다. JSON 필드명은 **camelCase**입니다.
+
+| 상황 | HTTP 상태 | 본문 형식 | 예시 |
+|---|---|---|---|
+| 조회·수정 성공 | `200 OK` | 실제 DTO 또는 DTO 배열 | `{"productId":1,"productName":"콜롬비아 원두"}` / `[{...},{...}]` |
+| 생성 성공 | `201 Created` | 생성된 DTO | `{"productId":10,"productName":"에티오피아 원두"}` |
+| 삭제 성공 | `204 No Content` | 본문 없음 | (빈 본문) |
+| 오류 | 4xx·5xx | `code`, `message` 두 필드만 | `{"code":"PRODUCT_NOT_FOUND","message":"상품을 찾을 수 없습니다."}` |
+
+컨트롤러 작성 예시
+
+```java
+@GetMapping("/api/products/{productId}")
+public ProductResponse get_product(@PathVariable Long productId) {           // 200 + DTO
+    return productService.get_product(productId);
 }
+
+@PostMapping("/api/admin/products")
+public ResponseEntity<ProductResponse> create_product(@Valid @RequestBody ProductCreateRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(productService.create_product(request)); // 201
+}
+
+@DeleteMapping("/api/admin/products/{productId}")
+public ResponseEntity<Void> delete_product(@PathVariable Long productId) {
+    productService.delete_product(productId);
+    return ResponseEntity.noContent().build();                                  // 204, 빈 본문
+}
+
+// 서비스에서 업무 오류
+throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);                       // 404 + code/message
 ```
+
+> 위 코드는 **사용 방법 예시**이며, `ProductResponse` 등 상품 클래스는 아직 없습니다.
+
+### 7-3. 공통 예외 처리
+
+구현 위치: `backend/src/main/java/com/cafe/beanorder/global/error/`
+
+| 클래스 | 역할 |
+|---|---|
+| `ErrorResponse` | 오류 본문 `{ code, message }` (record) |
+| `ErrorCode` | 오류 코드별 HTTP 상태·기본 메시지 (enum, `code` = enum 이름) |
+| `BusinessException` | 업무 오류 표현 (`ErrorCode` 보유) |
+| `GlobalExceptionHandler` | `@RestControllerAdvice`. Spring MVC 표준 예외는 `ResponseEntityExceptionHandler`를 상속해 **원래 상태 코드를 유지**하고 본문만 `code`/`message`로 변환 |
+
+| 발생 상황 | 예외 또는 처리 지점 | HTTP 상태 | 오류 코드 | 검증 여부 |
+|---|---|---|---|---|
+| 요청 DTO 검증 실패 (`@Valid @RequestBody`) | `MethodArgumentNotValidException` → `handleMethodArgumentNotValid` | 400 | `INVALID_INPUT` | ✅ MockMvc |
+| 잘못된 JSON | `HttpMessageNotReadableException` → `handleHttpMessageNotReadable` | 400 | `INVALID_INPUT` | ✅ MockMvc |
+| 필수 요청 본문 누락 | `HttpMessageNotReadableException` → `handleHttpMessageNotReadable` | 400 | `INVALID_INPUT` | ✅ MockMvc |
+| 경로 변수·파라미터 타입 오류 | `MethodArgumentTypeMismatchException` → `handleTypeMismatch` | 400 | `INVALID_INPUT` | ✅ MockMvc |
+| 필수 파라미터 누락 | `MissingServletRequestParameterException` → `handleMissingServletRequestParameter` | 400 | `INVALID_INPUT` | ✅ MockMvc |
+| 메서드 파라미터 검증 실패 (`@RequestParam @Min` 등) | `HandlerMethodValidationException` → `handleHandlerMethodValidationException` | 400 | `INVALID_INPUT` | ✅ MockMvc |
+| 서비스 계층 검증 실패 (`@Validated`) | `ConstraintViolationException` → `handle_constraint_violation` | 400 | `INVALID_INPUT` | ✅ MockMvc |
+| 존재하지 않는 상품·주문 | `BusinessException` → `handle_business_exception` | 404 | `PRODUCT_NOT_FOUND` 등 | ✅ MockMvc |
+| 업무 상태 충돌 | `BusinessException` → `handle_business_exception` | 409 | `ORDER_STATUS_CONFLICT` 등 | ✅ MockMvc |
+| 지원하지 않는 HTTP 메서드 | `HttpRequestMethodNotSupportedException` (상위 클래스) | 405 (`Allow` 헤더 유지) | `METHOD_NOT_ALLOWED` | ✅ MockMvc |
+| 지원하지 않는 Content-Type | `HttpMediaTypeNotSupportedException` (상위 클래스) | 415 | `UNSUPPORTED_MEDIA_TYPE` | ✅ MockMvc |
+| 없는 API 경로 | `NoResourceFoundException` (상위 클래스) | 404 | `RESOURCE_NOT_FOUND` | ✅ MockMvc·실제 서버 |
+| 지원하지 않는 Accept | `HttpMediaTypeNotAcceptableException` (상위 클래스) | 406 | `NOT_ACCEPTABLE` | ⬜ 미검증 |
+| 그 밖의 Spring MVC 표준 예외 | 상위 클래스 → `handleExceptionInternal` | 원래 상태 유지 | 400은 `INVALID_INPUT`, 5xx는 `INTERNAL_SERVER_ERROR`, 그 외는 HTTP 상태 이름 | ⬜ 미검증 |
+| 예상하지 못한 서버 오류 | `Exception` → `handle_unexpected_exception` | 500 | `INTERNAL_SERVER_ERROR` | ✅ MockMvc (로그 기록, 상세 미노출) |
+
+- 입력 오류 `message`는 `필드명: 검증 메시지` 형식이며, 여러 개면 쉼표로 이어 붙입니다. (예: `itemName: <검증 메시지>, quantity: <검증 메시지>`) 기본 검증 메시지는 서버 JVM 언어 설정을 따르므로, 고정 문구가 필요하면 DTO 어노테이션에 `message`를 지정합니다.
+- 500 응답은 일반 메시지만 반환하고, 원인과 스택 트레이스는 **서버 로그에만** 남깁니다. SQL·비밀번호·내부 클래스명은 응답에 나오지 않습니다.
+- CORS로 거부된 요청(403)은 예외 처리기를 거치지 않으므로 `code`/`message` 형식이 아닙니다.
+- `fieldErrors` 등 추가 필드는 사용하지 않습니다.
+
+오류 코드
+
+| 코드 | HTTP 상태 | 기본 메시지 | 확정 여부 |
+|---|---|---|---|
+| `INVALID_INPUT` | 400 | 요청 값이 올바르지 않습니다. | 확정 (팀 요청) |
+| `PRODUCT_NOT_FOUND` | 404 | 상품을 찾을 수 없습니다. | 확정 (팀 정책 예시) |
+| `RESOURCE_NOT_FOUND` | 404 | 요청한 리소스를 찾을 수 없습니다. | 제안 (없는 URL용) |
+| `METHOD_NOT_ALLOWED` | 405 | 지원하지 않는 HTTP 메서드입니다. | 제안 |
+| `NOT_ACCEPTABLE` | 406 | 요청한 응답 형식을 지원하지 않습니다. | 제안 |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | 지원하지 않는 Content-Type 입니다. | 제안 |
+| `INTERNAL_SERVER_ERROR` | 500 | 서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. | 제안 |
+| `ORDER_NOT_FOUND` | 404 | 주문을 찾을 수 없습니다. | **제안 (팀 확정 전)** |
+| `ORDER_STATUS_CONFLICT` | 409 | 현재 주문 상태에서는 요청을 처리할 수 없습니다. | **제안 (팀 확정 전)** |
+
+### 7-4. CORS 설정
+
+구현 위치: `global/config/CorsConfig.java`, `global/config/CorsProperties.java`
+
+| 항목 | 개발 기본값 | 설정 변경 방법 |
+|---|---|---|
+| 허용 Origin | `http://localhost:5173`, `http://127.0.0.1:5173` | 환경변수 `CORS_ALLOWED_ORIGINS`(쉼표 구분)로 **목록 전체를 교체**. 기본값은 `application.properties`의 `app.cors.allowed-origins` |
+| 적용 경로 | `/api/**` | `CorsConfig` 코드 수정 |
+| 허용 메서드 | `GET`, `POST`, `PUT`, `DELETE`, `OPTIONS` | `CorsConfig` 코드 수정 |
+| 허용 요청 헤더 | `Content-Type` | `CorsConfig` 코드 수정 |
+| credentials | 비활성화 (`Access-Control-Allow-Credentials` 미전송) | 쿠키 인증 도입 시 재검토 |
+| preflight 캐시 | 3600초 | `CorsConfig` 코드 수정 |
+| 와일드카드 `*` | 사용 불가 (`*` 포함 시 서버 기동 실패) | — |
+
+배포 주소 추가 예시 (PowerShell, 기본값을 대체하므로 개발 주소도 함께 적음)
+
+```powershell
+$env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https://<배포주소>.vercel.app"
+.\gradlew.bat bootRun
+```
+
+> ⚠️ **CORS는 인증·권한 검사가 아닙니다.** 브라우저가 다른 출처의 응답을 읽어도 되는지만 정하는 규칙이며, curl·Postman 같은 비브라우저 요청은 막지 않습니다. 관리자 API 보호는 별도의 관리자 인증(미확정)으로 해결해야 합니다.
 
 ---
 
@@ -268,14 +389,20 @@ flowchart LR
 │       │   ├── BeanOrderApplication.java          # 시간대 Asia/Seoul 설정
 │       │   ├── product/                            # 상품 도메인 (예정, package-info.java만 존재)
 │       │   ├── order/                              # 주문 도메인 (예정)
-│       │   └── global/                             # 공통 설정·예외 처리 (예정)
+│       │   └── global/
+│       │       ├── config/                         # CorsConfig, CorsProperties (/api/** CORS)
+│       │       └── error/                          # ErrorResponse, ErrorCode, BusinessException, GlobalExceptionHandler
 │       ├── main/resources/
-│       │   ├── application.properties              # 기본 프로필 local, 포트 8080
+│       │   ├── application.properties              # 기본 프로필 local, 포트 8080, CORS 허용 Origin
 │       │   └── application-local.properties        # H2 파일 DB, ddl-auto=update
 │       └── test/
 │           ├── java/com/cafe/beanorder/
 │           │   ├── BeanOrderApplicationTests.java
-│           │   └── global/dbcheck/                 # 테스트 전용 엔티티·Repository·통합 테스트
+│           │   └── global/
+│           │       ├── dbcheck/                    # 테스트 전용 엔티티·Repository·DB 연결 테스트
+│           │       ├── support/                    # 테스트 전용 컨트롤러 (운영 jar 미포함)
+│           │       ├── error/                      # 공통 응답·예외 처리 MockMvc 테스트
+│           │       └── config/                     # CORS MockMvc 테스트
 │           └── resources/application-test.properties  # H2 인메모리, ddl-auto=create-drop
 ├── docs/
 │   └── images/erd.png                              # ERD 이미지
@@ -349,12 +476,17 @@ flowchart LR
 
 ## 11. 일정
 
-> 상세 일정은 팀 확정 후 작성합니다.
+### WBS - 환경 세팅
 
-| 날짜 | 내용 | 상태 |
-|---|---|---|
-| 2026-11-26 | 초기 개발 환경 세팅 및 README 작성 | PR 리뷰 대기 |
-| (미정) | 이후 일정 | 팀 확정 후 작성 |
+| 번호 | 구분 | 작업 | 담당 | 시작 | 종료 | 상태 | 산출물 |
+|---|---|---|---|---|---|---|---|
+| 미확인 | 환경 세팅 | Spring Boot 프로젝트 생성 및 DB 연결 | 미확인 | 11.26 ※ | 11.26 ※ | 완료 (PR #1 리뷰 후 `dev` 머지) | `backend/` |
+| 미확인 | 환경 세팅 | React 프로젝트 생성 및 라우팅 | 미확인 | 11.26 ※ | 11.26 ※ | 완료 (PR #1 리뷰 후 `dev` 머지) | `frontend/` |
+| 2.3 | 환경 세팅 | 공통 응답·예외 처리·CORS 설정 | D | 11.27 | 11.27 | 구현·테스트 통과, PR 생성·리뷰·머지 전 | 공통 모듈 (`global/error`, `global/config`) |
+
+※ WBS 번호·담당·계획 일정이 확인되지 않아 실제 작업일을 적었습니다.
+
+상세 일정은 팀 확정 후 추가합니다.
 
 ---
 
@@ -423,9 +555,28 @@ npm run build   # 프로덕션 빌드 (frontend/dist)
 | 개발 서버 | 포트 5173 기동 |
 | 라우팅 | 직접 URL 진입, 메뉴 이동, `/` → `/customer`, `/admin`·임의 경로 404 확인 |
 
+### 공통 모듈 검증 결과 (WBS 2.3, 2026-11-26)
+
+테스트 전용 컨트롤러(`src/test/.../global/support`)와 MockMvc로 검증했습니다. 이 컨트롤러는 운영 jar에 포함되지 않습니다.
+
+| 항목 | 결과 |
+|---|---|
+| `gradlew.bat clean build` | 성공, 테스트 29개 통과 (기존 4개 + 공통 응답·예외 18개 + CORS 7개) |
+| 성공 응답 | DTO·목록이 `success`/`data` 없이 그대로 반환, 생성 201, 삭제 204·빈 본문 |
+| 입력 오류 | DTO 검증·잘못된 JSON·본문 누락·타입 오류·필수 파라미터 누락·파라미터 검증 실패 모두 400 `INVALID_INPUT` |
+| 업무 예외 | 404 `PRODUCT_NOT_FOUND`, 409 `ORDER_STATUS_CONFLICT` |
+| 예상하지 못한 예외 | 500 일반 메시지, 응답에 SQL·비밀번호·예외 클래스명 없음, 서버 로그에 원인 기록 |
+| 프레임워크 상태 보존 | 405(`Allow` 헤더 포함)·415·없는 경로 404 유지 |
+| CORS (MockMvc) | 허용 Origin 실제 요청·preflight 헤더 확인, 비허용 Origin·메서드·헤더는 403이고 허용 헤더 없음, credentials 헤더 없음 |
+| CORS (실제 서버) | `CORS_ALLOWED_ORIGINS`에 추가한 배포 주소 preflight 허용, 목록에서 빠진 Origin 403 |
+| 운영 jar | 테스트 컨트롤러 미포함 확인 |
+| 프론트·백엔드 연동 | **미확인** (브라우저에서 실제 API 호출은 하지 않음) |
+
 ---
 
 ## 14. 남은 결정 사항
+
+### 14-1. 미확정 정책
 
 | 항목 | 현재 상태 |
 |---|---|
@@ -435,3 +586,19 @@ npm run build   # 프로덕션 빌드 (frontend/dist)
 | 주문 병합 시 주소 비교에 우편번호 포함 여부와 공백 정규화 | **미확정** |
 | 서버 중단으로 스케줄러 실행을 놓친 경우 처리 | **미확정** |
 | 팀원 역할 분담·세부 일정 | 이 문서에 미반영 |
+| 주문 오류 코드 (`ORDER_NOT_FOUND`, `ORDER_STATUS_CONFLICT`) | **제안 상태** (코드에 반영, 팀 확정 필요) |
+
+### 14-2. 명세 보완 필요 사항
+
+| 항목 | 현재 문서 내용 | 문제 | 제안 | 확정 여부 |
+|---|---|---|---|---|
+| 주문 생성 Method | `GET /api/orders` → 201 | `GET`은 조회용이라 주문 저장에 맞지 않고, 201과도 어긋남 | `POST /api/orders` + 201 | 미확정 (확인 필요) |
+| 장바구니 설명 | 주문 생성 항목에 장바구니 이동·프론트 state 보관 설명 | 화면 이동(React 라우팅)과 주문 생성 API가 한 항목에 섞여 있음 | 장바구니는 프론트 라우팅·state, API는 주문 저장만 담당 | 미확정 |
+| 상품 목록 조회 예시 | `userId`, `grade`, `attendanceItems` 등 출결 템플릿 예시 | 예시 전체가 카페 상품과 무관한 템플릿 잔존 | ERD 기준 상품 필드(`productId`, `productName`, `price`, `origin` 등)로 교체 | 미확정 |
+| 상품 상세·등록·수정·삭제 | 요청·응답 필드 표가 비어 있음 | 계약이 정해지지 않음 | ERD 기준 필드로 작성 | 미확정 |
+| 주문 6개 상세 예시 | `userId`, `name`, `grade`, `phoneNumber`, `birth` 등 | 예시 전체가 다른 서비스 템플릿이며 카페 주문 필드(`email`, `address`, `zipcode`, 주문 상품·수량)가 없음 | ERD 기준 주문 필드로 교체 | 미확정 |
+| 상세 Status 표 | 공통 200/400 틀 | 상단 성공 코드(201·204)와 불일치, 404·409 누락 | 성공 코드를 상단과 맞추고 400·404·409 오류 코드 명시 | 미확정 |
+| 삭제 플래그 이름 | 명세 `is_delete`, ERD `is_deleted` | 이름 불일치 | DB는 ERD `is_deleted`, JSON은 `isDeleted`로 통일 | 미확정 |
+| 주문 삭제 | `DELETE /api/admin/orders/{orderId}` → 204 | 실제 삭제인지 논리 삭제인지, 어떤 상태에서 허용되는지 불명. 주문 취소(`CANCELLED`)와 구분 필요하며, 실제 삭제 시 `order_item`도 CASCADE로 삭제됨 | 삭제 방식·허용 상태를 정하고 취소와 구분해 기술 | 미확정 |
+| 고객 이메일별 주문 조회 | 최신 API 목록에 없음 | 범위에서 제외한 것인지 누락인지 불명 | 팀 확인 | 미확정 |
+| 오류 코드 | 상품 예시 `PRODUCT_NOT_FOUND`만 있음 | 주문 관련 오류 코드 없음 | `ORDER_NOT_FOUND`(404), `ORDER_STATUS_CONFLICT`(409) | 미확정 (제안) |
