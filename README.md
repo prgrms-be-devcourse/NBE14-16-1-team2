@@ -2,7 +2,7 @@
 
 회원가입 없이 이메일만으로 원두를 주문하고, 관리자가 상품과 주문·배송 상태를 관리하는 웹 서비스입니다.
 
-> **현재 단계: 환경 세팅 완료 (초기 환경 구성, 공통 응답·예외 처리·CORS)**
+> **현재 단계: 환경 세팅 완료 (초기 환경 구성, 공통 응답·예외 처리·CORS, 공통 엔티티)**
 > 이 문서의 비즈니스 규칙·ERD·API 목록은 **후속 개발 기준**입니다. 상품·주문 업무 API는 아직 구현되지 않았습니다.
 > 지금까지 구현된 것은 [3. 주요 기능과 구현 현황](#3-주요-기능과-구현-현황)에서 ✅로 표시한 항목뿐입니다.
 
@@ -98,6 +98,7 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 | 공통 레이아웃·내비게이션 | ✅ |
 | 공통 오류 응답(`code`/`message`)·공통 예외 처리 | ✅ |
 | `/api/**` CORS 설정 | ✅ |
+| 공통 엔티티 `Product`·`Order`·`OrderItem`, 상품 생성·수정일 JPA Auditing | ✅ |
 
 ### 고객 기능
 
@@ -165,10 +166,11 @@ flowchart LR
 |---|---|
 | Controller | 요청 검증(Validation), 실제 DTO 반환 (예정) |
 | Service | 배송 그룹 계산, 주문 병합, 상태 전환 등 비즈니스 규칙. 업무 오류는 `BusinessException` (예정) |
-| Repository | Spring Data JPA로 DB 접근 |
+| Repository | Spring Data JPA로 DB 접근 (운영 Repository는 아직 없음) |
+| Entity | `product.Product`, `order.Order`, `order.OrderItem` ([6-1](#6-1-구현된-엔티티)) |
 | DB | H2 (local 프로필은 `backend/data/`의 파일 DB) |
 | global/error | `GlobalExceptionHandler`가 모든 예외를 `code`/`message` 오류 응답으로 변환 |
-| global/config | `/api/**` CORS 설정 |
+| global/config | `/api/**` CORS 설정, JPA Auditing(Asia/Seoul `Clock`) |
 
 > `/api/**` CORS는 설정했지만, 프론트에서 실제 API를 호출하는 **연동은 아직 하지 않았습니다.**
 
@@ -176,7 +178,7 @@ flowchart LR
 
 ## 6. ERD 및 설계 의도
 
-> 아래 테이블은 설계 기준이며, 이번 작업에서는 **실제 도메인 엔티티를 만들지 않았습니다.**
+> 아래 테이블은 ERD 설계 기준입니다. 이를 구현한 JPA 엔티티는 [6-1. 구현된 엔티티](#6-1-구현된-엔티티)에 정리했습니다.
 
 ![ERD](docs/images/erd.png)
 
@@ -236,6 +238,61 @@ flowchart LR
 
 - 주문 취소는 행을 지우지 않습니다. CASCADE는 **데이터 정리 등으로 주문 행 자체를 지울 때만** 적용되는 물리 규칙입니다.
 - `order_item.product_id`는 `ON DELETE RESTRICT`입니다. 주문에 쓰인 상품 행은 물리 삭제할 수 없으며, 상품 삭제 기능은 `is_deleted` 플래그로 처리합니다.
+
+### 6-1. 구현된 엔티티
+
+> WBS 2.4. 엔티티·테스트만 구현했고, 이를 사용하는 Repository·Service·API는 아직 없습니다.
+
+| 엔티티 | 패키지 | 테이블 | 필드 → 컬럼 |
+|---|---|---|---|
+| `Product` | `product` | `product` | `id`→`product_id`, `productName`→`product_name`(100), `price`, `description`→`description`(TEXT), `origin`(문자열 enum), `imagePath`→`image_path`(255), `createdAt`→`created_at`, `updatedAt`→`updated_at`, `isDeleted`→`is_deleted` |
+| `Order` | `order` | `orders` | `id`→`order_id`, `email`(255), `address`(255), `zipcode`(10), `orderedAt`→`ordered_at`, `status`(문자열 enum), `deliveryDate`→`delivery_date` |
+| `OrderItem` | `order` | `order_item` | `id`→`order_item_id`, `order`→`order_id`, `product`→`product_id`, `productName`→`product_name`(100), `quantity`, `orderPrice`→`order_price` |
+| `Origin` | `product` | — | `COLOMBIA`, `BRAZIL`, `ETHIOPIA`, `OTHER` |
+| `OrderStatus` | `order` | — | `ORDERED`, `SHIPPING`, `DELIVERED`, `CANCELLED` |
+
+필수 여부·길이는 ERD와 같습니다. (`description`, `image_path`만 nullable)
+
+#### 연관관계와 삭제 규칙
+
+| 관계 | JPA 매핑 | JPA cascade | DB FK 삭제 규칙 |
+|---|---|---|---|
+| `OrderItem` → `Order` | `@ManyToOne(LAZY, optional=false)`, `@JoinColumn(order_id, nullable=false)` — **연관관계 주인** | 없음 | `ON DELETE CASCADE` (`@OnDelete(CASCADE)`) |
+| `Order` → `orderItems` | `@OneToMany(mappedBy="order")`, 읽기 전용 목록 반환 | `PERSIST`만 | — |
+| `OrderItem` → `Product` | `@ManyToOne(LAZY, optional=false)`, `@JoinColumn(product_id, nullable=false)` | 없음 | `ON DELETE RESTRICT` (`@OnDelete(RESTRICT)`) |
+| `Product` → 주문 상세 | 만들지 않음 (불필요한 양방향 관계 제외) | — | — |
+
+- **JPA cascade와 DB 삭제 규칙은 별개입니다.** JPA cascade는 애플리케이션이 엔티티를 저장·삭제할 때 연관 엔티티에 작업을 전파하는 것이고, `ON DELETE`는 DB에서 행을 지울 때 FK가 어떻게 반응하는지입니다.
+- `PERSIST`만 켠 이유: 주문 생성 시 상세를 함께 저장해야 하기 때문입니다.
+- `REMOVE`·`orphanRemoval`을 켜지 않은 이유: 고객 취소·부분 취소가 허용되지 않고 주문 DELETE 의미도 미확정이라, 상세를 애플리케이션에서 지울 경로가 없습니다. 주문 행을 물리 삭제할 경우의 상세 정리는 DB `ON DELETE CASCADE`가 담당합니다.
+- `Product` 쪽으로는 cascade를 전파하지 않습니다. 주문을 지우거나 취소해도 상품은 영향받지 않습니다.
+
+#### 스냅샷·논리 삭제·Auditing·금액 계산
+
+| 항목 | 구현 | 비고 |
+|---|---|---|
+| 주문 상세 추가 | `order.add_order_item(product, quantity)` — 컬렉션과 `OrderItem.order`를 함께 설정 | 상세 목록은 외부에서 수정 불가 |
+| 스냅샷 | 상세 생성 시 `Product`의 현재 `productName`·`price`를 `productName`·`orderPrice`로 복사 | 이후 상품 이름·가격이 바뀌어도 상세 값은 그대로 |
+| 상품 논리 삭제 | `product.mark_deleted()` → `is_deleted = true` | 복구 기능 없음. 기존 주문 상세의 상품 참조 유지 |
+| 삭제 상품 제외 | **전역 필터를 쓰지 않음** | 고객 상품 조회·주문 생성에서 `isDeleted = false` 조건을 **직접** 걸어야 함 (후속 작업) |
+| 상품 정보 수정 | `product.update_info(...)` | 관리자 상품 수정용 |
+| 생성·수정일 | `Product`만 JPA Auditing(`@CreatedDate`, `@LastModifiedDate`), `Clock`은 Asia/Seoul | `Order`에는 ERD에 없는 생성·수정일 컬럼을 두지 않음 |
+| 항목 금액 | `orderItem.calculate_amount()` = `(long) orderPrice × quantity` | 곱하기 전에 `long`으로 변환해 int 오버플로 방지 |
+| 주문 총액 | `order.calculate_total_amount()` = 항목 금액 합계 (`long`) | 합계 컬럼 없음, 상품의 현재 가격을 쓰지 않음 |
+| 신규 기본값 | 상품 `isDeleted = false`, 주문 `status = ORDERED` | 생성 시 Java에서 설정 |
+| 입력 조건 | 가격·수량은 1 이상, 필수 문자열·값 누락 금지 | 위반 시 `BusinessException(INVALID_INPUT)` → API에서는 400 |
+| 주문 시각·배송 예정일 | 생성 시 외부에서 전달 | 14시 기준 배송일 계산은 아직 없음 |
+| 상태 전환 | **메서드 없음** | 취소·배송 전환 규칙 확정 후 추가 |
+
+#### ERD와 실제 스키마 차이 (H2 자동 생성 기준)
+
+| 항목 | ERD | 실제 스키마 | 영향 |
+|---|---|---|---|
+| `description` 타입 | `text` | H2에서 `CHARACTER VARYING(1000000000)` (`TEXT` 지정) | 기능 차이 없음 |
+| `origin`·`status` 타입 | enum | H2 `ENUM` 타입 (Hibernate가 생성) | `ddl-auto=update`는 기존 ENUM 컬럼에 **새 값을 추가하지 않음**. enum 값을 늘리면 local DB 컬럼을 직접 변경해야 함 |
+| `status` 기본값 | `default: 'ORDERED'` | DB 기본값 없음 | 엔티티 생성 시 Java에서 `ORDERED` 설정. SQL로 직접 넣으면 기본값이 적용되지 않음 |
+| 가격·수량 양수 | (명시 없음) | DB CHECK 제약 없음 | 엔티티 생성·수정 시 애플리케이션에서 검사 |
+| `datetime` / `bool` | `datetime` / `bool` | `TIMESTAMP` / `BOOLEAN` | H2 대응 타입 |
 
 ---
 
@@ -387,17 +444,20 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 │   └── src/
 │       ├── main/java/com/cafe/beanorder/
 │       │   ├── BeanOrderApplication.java          # 시간대 Asia/Seoul 설정
-│       │   ├── product/                            # 상품 도메인 (예정, package-info.java만 존재)
-│       │   ├── order/                              # 주문 도메인 (예정)
+│       │   ├── product/                            # Product, Origin (엔티티만, API 없음)
+│       │   ├── order/                              # Order, OrderItem, OrderStatus (엔티티만, API 없음)
 │       │   └── global/
-│       │       ├── config/                         # CorsConfig, CorsProperties (/api/** CORS)
-│       │       └── error/                          # ErrorResponse, ErrorCode, BusinessException, GlobalExceptionHandler
+│       │       ├── config/                         # CorsConfig, CorsProperties, JpaAuditingConfig
+│       │       └── error/                          # ErrorResponse, ErrorCode, BusinessException, GlobalExceptionHandler, DomainPreconditions
 │       ├── main/resources/
 │       │   ├── application.properties              # 기본 프로필 local, 포트 8080, CORS 허용 Origin
 │       │   └── application-local.properties        # H2 파일 DB, ddl-auto=update
 │       └── test/
 │           ├── java/com/cafe/beanorder/
 │           │   ├── BeanOrderApplicationTests.java
+│           │   ├── product/ProductEntityTest.java  # 상품 저장·Auditing·논리 삭제·입력 조건
+│           │   ├── order/OrderEntityTest.java      # 주문·상세 관계, 스냅샷, 금액, FK 삭제 규칙
+│           │   ├── support/MutableTestClock.java   # 테스트용 시간 제어 Clock
 │           │   └── global/
 │           │       ├── dbcheck/                    # 테스트 전용 엔티티·Repository·DB 연결 테스트
 │           │       ├── support/                    # 테스트 전용 컨트롤러 (운영 jar 미포함)
@@ -483,6 +543,7 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 | 미확인 | 환경 세팅 | Spring Boot 프로젝트 생성 및 DB 연결 | 미확인 | 11.26 ※ | 11.26 ※ | 완료 (PR #1 리뷰 후 `dev` 머지) | `backend/` |
 | 미확인 | 환경 세팅 | React 프로젝트 생성 및 라우팅 | 미확인 | 11.26 ※ | 11.26 ※ | 완료 (PR #1 리뷰 후 `dev` 머지) | `frontend/` |
 | 2.3 | 환경 세팅 | 공통 응답·예외 처리·CORS 설정 | D | 11.27 | 11.27 | 완료 (PR #2 `dev` 머지) | 공통 모듈 (`global/error`, `global/config`) |
+| 2.4 | 환경 세팅 | 공통 엔티티 구성 (Product, Order, OrderItem) | 미확인 | 미확인 | 미확인 | 완료 (PR #4 `dev` 머지) | `product`·`order` 엔티티, `JpaAuditingConfig` |
 
 ※ WBS 번호·담당·계획 일정이 확인되지 않아 실제 작업일을 적었습니다.
 
@@ -572,6 +633,24 @@ npm run build   # 프로덕션 빌드 (frontend/dist)
 | 운영 jar | 테스트 컨트롤러 미포함 확인 |
 | 프론트·백엔드 연동 | **미확인** (브라우저에서 실제 API 호출은 하지 않음) |
 
+### 공통 엔티티 검증 결과 (WBS 2.4, 2026-11-26)
+
+test 프로필 H2 인메모리 DB와 `EntityManager`로 검증했습니다. 물리 삭제 규칙은 테스트 DB에서만 확인했습니다.
+
+| 항목 | 결과 |
+|---|---|
+| `gradlew.bat clean build` | 성공, 테스트 48개 통과 (기존 29개 + 상품 7개 + 주문 12개) |
+| 상품 저장·조회 | ID 자동 생성, 필드 재조회 일치, `origin` 문자열 저장, 신규 `isDeleted=false` |
+| Auditing | 생성 시 `createdAt`·`updatedAt` 기록, 수정 시 `updatedAt`만 갱신 (테스트용 `Clock`으로 1시간 이동, sleep 없음) |
+| 주문·상세 | `PERSIST` cascade로 상세 함께 저장, flush·clear 후 재조회, FK 연결, `status` 문자열 저장·기본 `ORDERED` |
+| 금액 | 항목 금액·총액 계산, `Integer.MAX_VALUE × 2`도 오버플로 없음 |
+| 스냅샷 | 상품 이름·가격 변경 후에도 상세의 `productName`·`orderPrice` 유지 |
+| 논리 삭제 | 상품 삭제 플래그 후에도 주문 상세의 상품 참조 유지 |
+| FK 삭제 규칙 | DB 메타데이터 `order_id`=CASCADE, `product_id`=RESTRICT. 주문 행 삭제 시 상세 함께 삭제, 상세가 참조하는 상품 삭제는 차단 |
+| 입력 조건 | 가격·수량 0·음수, 필수 값 누락 시 `INVALID_INPUT` |
+| JPQL | 엔티티 이름 `Order`로 조회 가능 |
+| local 프로필 실행 | `ddl-auto=update`로 세 테이블 생성, FK 삭제 규칙 동일 확인 (기존 데이터 삭제 없음) |
+
 ---
 
 ## 14. 남은 결정 사항
@@ -587,6 +666,10 @@ npm run build   # 프로덕션 빌드 (frontend/dist)
 | 서버 중단으로 스케줄러 실행을 놓친 경우 처리 | **미확정** |
 | 팀원 역할 분담·세부 일정 | 이 문서에 미반영 |
 | 주문 오류 코드 (`ORDER_NOT_FOUND`, `ORDER_STATUS_CONFLICT`) | **제안 상태** (코드에 반영, 팀 확정 필요) |
+| 삭제된 상품을 주문 상세에 담는 것을 엔티티에서 막을지, 서비스에서 막을지 | **미확정** (현재 엔티티는 막지 않음) |
+| 주문 상태 전환 메서드 (취소·배송 시작·배송 완료) | **미구현** (전환 규칙 확정 후 추가) |
+| `status` DB 기본값·가격·수량 DB CHECK 제약 추가 여부 | **미확정** (현재 애플리케이션에서만 보장) |
+| WBS 2.4 담당·일정 | 미확인 |
 
 ### 14-2. 명세 보완 필요 사항
 
