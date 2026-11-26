@@ -458,7 +458,7 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 `POST /api/admin/login` · `Content-Type: application/json`
 
 ```json
-{ "password": "입력한 관리자 비밀번호" }
+{ "password": "admin" }
 ```
 
 | 상황 | HTTP 상태 | 응답 본문 |
@@ -470,6 +470,7 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 | JSON이 아닌 Content-Type | 415 | `{"code":"UNSUPPORTED_MEDIA_TYPE",...}` (기존 정책) |
 | 비밀번호 불일치 | 401 | `{"code":"UNAUTHORIZED","message":"관리자 인증에 실패했습니다."}` |
 
+- 위 요청 예시는 **local 프로필의 기본 관리자 비밀번호 `admin`**을 사용합니다. `ADMIN_PASSWORD`를 설정했다면 해당 값으로 요청합니다.
 - 비밀번호는 입력 문자열 **그대로** 비교합니다. 앞뒤 공백 제거·대소문자 변환을 하지 않습니다. (공백만 있는 값은 입력 누락으로 400)
 - 숫자 `123`을 `"123"`으로 바꾸는 Jackson 기본 변환을 이 필드에서는 막았습니다.
 - 노션 명세 예시는 `success`/`data` 래퍼를 쓰지만, **팀 결정(래퍼 없이 실제 데이터 반환, [7-2](#7-2-공통-응답))을 유지**했습니다. → [14-2](#14-2-명세-보완-필요-사항)에 불일치 기록
@@ -503,11 +504,11 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 
 | 설정 키 | 환경변수 | 필수 | 기본값 | 설명 |
 |---|---|---|---|---|
-| `app.admin.password` | `ADMIN_PASSWORD` | local 프로필: 선택 / 그 외: **필수** | local 프로필만 `1` (개발 편의), 그 외 없음 | 관리자 비밀번호. local 외 프로필에서 없거나 빈 값(공백만 포함)이면 **서버 시작 실패** |
+| `app.admin.password` | `ADMIN_PASSWORD` | local 프로필: 선택 / 그 외: **필수** | local 프로필만 `admin` (개발 편의), 그 외 없음 | 관리자 비밀번호. local 외 프로필에서 없거나 빈 값(공백만 포함)이면 **서버 시작 실패** |
 | `app.admin.token-ttl` | `APP_ADMIN_TOKEN_TTL` | 선택 | `1h` | 토큰 유효 시간 (**팀 확정 전 임시값**). `30m`, `2h` 형식. 0 이하이면 시작 실패 |
 | `app.admin.max-active-tokens` | `APP_ADMIN_MAX_ACTIVE_TOKENS` | 선택 | `100` | 메모리에 보관할 유효 토큰 최대 수. 0 이하이면 시작 실패 |
 
-- **local 프로필(기본 실행)은 `ADMIN_PASSWORD`가 없으면 비밀번호 `1`로 로그인**합니다 (`application-local.properties`). 개발 편의용이므로 배포 환경에서는 local 프로필을 쓰지 말고 반드시 `ADMIN_PASSWORD`를 설정합니다.
+- **local 프로필(기본 실행)은 `ADMIN_PASSWORD`가 없으면 비밀번호 `admin`으로 로그인**합니다 (`application-local.properties`). 개발 편의용이므로 배포 환경에서는 local 프로필을 쓰지 말고 반드시 `ADMIN_PASSWORD`를 설정합니다.
 - 실제(배포용) 비밀번호는 코드·Git·README·프론트 `VITE_` 환경변수에 넣지 않습니다. 우회 비밀번호는 없습니다.
 - 비밀번호는 설정 객체 `toString`, 오류 메시지, 로그에 나오지 않습니다. (설정 오류 메시지는 값 없이 키 이름만 안내)
 - 테스트는 `src/test/resources/application-test.properties`의 **테스트 전용 값**을 씁니다.
@@ -738,16 +739,16 @@ export async function fetch_admin(path, options = {}) {
 cd backend
 Copy-Item config\local-db.properties.example config\local-db.properties   # 최초 1회, 비밀번호 수정
 .\gradlew.bat build     # 빌드 + 테스트 (test 프로필, H2 인메모리, 테스트 전용 관리자 비밀번호 사용)
-.\gradlew.bat bootRun   # local 프로필로 실행 (기본 프로필). 관리자 비밀번호는 1
+.\gradlew.bat bootRun   # local 프로필로 실행 (기본 프로필). 관리자 비밀번호는 admin
 ```
 
-- local 프로필은 `ADMIN_PASSWORD`가 없으면 관리자 비밀번호 `1`을 씁니다. 다른 값을 쓰려면 실행 전에 `$env:ADMIN_PASSWORD = "<원하는 값>"`을 설정합니다.
+- **로컬 기본 관리자 비밀번호는 `admin`입니다.** local 프로필은 `ADMIN_PASSWORD`가 없으면 이 값을 사용합니다. 다른 값을 쓰려면 실행 전에 `$env:ADMIN_PASSWORD = "<원하는 값>"`을 설정합니다. 환경변수를 빈 값이나 공백만 있는 값으로 명시하면 설정 검증에 실패할 수 있습니다.
 - local 외 프로필에서 `ADMIN_PASSWORD`가 없거나 비어 있으면 `APPLICATION FAILED TO START`와 함께 `환경변수 ADMIN_PASSWORD 를 설정한 뒤 서버를 시작하세요.` 메시지가 나오고 실행이 중단됩니다.
 
 관리자 로그인 확인 예시 (PowerShell, 서버 실행 중)
 
 ```powershell
-$login = Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/admin/login -ContentType 'application/json' -Body '{"password":"1"}'
+$login = Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/admin/login -ContentType 'application/json' -Body '{"password":"admin"}'
 Invoke-WebRequest -Uri http://localhost:8080/api/admin/orders -Headers @{ Authorization = "Bearer $($login.token)" }   # 관리자 API 미구현이라 현재는 404 (토큰 없으면 401)
 ```
 
@@ -833,7 +834,7 @@ test 프로필 H2 인메모리 DB와 `EntityManager`로 검증했습니다. 물�
 | 로그인 성공 | 200, 43자 URL-safe `token`, `success`/`data`/`password` 없음, 응답에 비밀번호 문자열 없음 |
 | 비밀번호 불일치 | 대소문자 다름·앞뒤 공백·일부 누락 포함 401 `UNAUTHORIZED` |
 | 입력 오류 | 누락·`null`·빈 문자열·공백·탭/줄바꿈, 숫자·boolean·배열·객체·실수, 잘못된 JSON·`null` 본문·빈 본문 모두 400 `INVALID_INPUT`. `text/plain`은 415 유지 |
-| 설정 누락 시 시작 실패 | 실제 `SpringApplication` 실행으로 확인: 비밀번호 없음·공백, TTL `0s`·`-1m`, 최대 토큰 0 → 시작 실패. 오류 메시지·로그에 비밀번호 값 없음 |
+| 잘못된 설정 시 시작 실패 | test 프로필에서 `app.admin.password`를 빈 값·공백으로 명시하거나 TTL `0s`·`-1m`, 최대 토큰 0을 지정하면 시작 실패. 오류 메시지·로그에 비밀번호 값 없음. local에서 `ADMIN_PASSWORD`를 생략하면 기본값 `admin`을 사용하므로 이 실패 조건에 해당하지 않음 |
 | 인증 없는 관리자 접근 | `/api/admin`, `/api/admin/`, 없는 관리자 경로, `GET /api/admin/login`, `POST /api/admin/login/extra`·`/api/admin/login/`, 일반 `OPTIONS` 모두 401. 컨트롤러 실행 0회 |
 | 잘못된 토큰·헤더 | 13가지 형식(빈 값, `Bearer`만, 공백 두 칸, `Basic`, 토큰 단독, 변조·미발급 토큰 등)과 헤더 2개 → 401. 쿼리·본문 토큰 무시 |
 | 유효 토큰 | 200 (`bearer` 소문자도 허용) |
@@ -844,7 +845,7 @@ test 프로필 H2 인메모리 DB와 `EntityManager`로 검증했습니다. 물�
 | CORS | `Authorization` 포함 preflight 200(관리자 경로·로그인), 401 응답에 `Access-Control-Allow-Origin` 포함, 비허용 Origin은 유효 토큰이 있어도 403, 다른 미허용 헤더(`x-custom-header`)는 기존대로 403 |
 | 토큰 저장소 | 1000개 발급 중복 없음, 만료 정리, 상한 초과 시 오래된 토큰 제거, 8스레드 동시 발급에서 상한 유지 |
 | 보안 구성 | 토큰 필터가 필터 체인에 1번만 등록(빈 아님), 기본 사용자 없음, `Set-Cookie` 없음, 로그에 비밀번호·토큰·생성 비밀번호 출력 없음 |
-| 실행 jar (local 프로필, 인메모리 DB로 수동 확인) | `ADMIN_PASSWORD` 없으면 시작 실패. 예시 값으로 실행 시 잘못된 비밀번호 401, 로그인 토큰 43자, 토큰 없는 `/api/admin/orders` 401 + CORS 헤더 + `WWW-Authenticate`, 토큰 있으면 404(API 미구현), preflight 200, `/api/products` 404, 로그에 비밀번호·토큰 없음 |
+| 실행 jar (local 프로필, 인메모리 DB로 수동 확인) | `ADMIN_PASSWORD` 없이 실행 시 기본 비밀번호 `admin` 로그인 200, `1` 등 다른 값 401. 명시적 비밀번호 설정 실행 기록: 잘못된 비밀번호 401, 로그인 토큰 43자, 토큰 없는 `/api/admin/orders` 401 + CORS 헤더 + `WWW-Authenticate`, 토큰 있으면 404(API 미구현), preflight 200, `/api/products` 404, 로그에 비밀번호·토큰 없음 |
 | 프론트·백엔드 연동 | **미확인** (React 로그인 화면 미구현) |
 
 ---
