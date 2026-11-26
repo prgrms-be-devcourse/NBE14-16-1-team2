@@ -1,0 +1,51 @@
+### 빌드 결과 ###
+build/
+out/
+bin/
+dist/
+dist-ssr/
+.gradle/
+!**/src/main/**/build/
+!**/src/test/**/build/
+!**/src/main/**/out/
+!**/src/test/**/out/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### Gradle Wrapper 는 포함 ###
+!gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+
+### Node ###
+node_modules/
+npm-debug.log*
+*.log
+*.local
+
+### 환경 변수 / 비밀번호 파일 ###
+.env
+.env.*
+!.env.example
+backend/config/local-db.properties
+
+### H2 DB 파일 ###
+backend/data/
+*.mv.db
+*.trace.db
+*.lock.db
+
+### IDE / OS ###
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated
+.sts4-cache/
+.claude/
+.DS_Store
+Thumbs.db
