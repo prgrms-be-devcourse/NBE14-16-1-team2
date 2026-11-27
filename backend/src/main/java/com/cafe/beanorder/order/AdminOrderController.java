@@ -1,7 +1,9 @@
 package com.cafe.beanorder.order;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -28,4 +30,19 @@ public class AdminOrderController {
     public OrderResponse get_order(@PathVariable Long orderId) {
         return adminOrderService.get_order(orderId);
     }
+
+    // PUT /api/admin/orders/12/status  body: {"status":"CANCELLED"}
+    @PutMapping("/{orderId}/status")
+    public OrderStatusResponse change_status(@PathVariable Long orderId,
+                                             @Valid @RequestBody OrderStatusRequest request) {
+        return adminOrderService.change_status(orderId, request);
+    }
+
+    // DELETE /api/admin/orders/12 → 204
+    @DeleteMapping("/{orderId}")
+    public ResponseEntity<Void> delete_order(@PathVariable Long orderId) {
+        adminOrderService.delete_order(orderId);
+        return ResponseEntity.noContent().build();
+    }
+
 }
