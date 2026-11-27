@@ -701,14 +701,29 @@ export async function fetch_admin(path, options = {}) {
 │   ├── package.json / package-lock.json
 │   ├── vite.config.js                              # 개발 서버 포트 5173 고정
 │   └── src/
-│       ├── main.jsx / App.jsx                      # BrowserRouter, 라우트 정의
-│       ├── layouts/MainLayout.jsx                  # 공통 레이아웃·내비게이션
+│       ├── main.jsx / App.jsx                      # BrowserRouter, 라우트 정의 (고객·관리자 레이아웃 분리)
+│       ├── index.css                               # 전역 스타일 진입점 (styles/* import)
+│       ├── styles/
+│       │   ├── fonts.css                           # SUIT 웹폰트(@font-face, jsDelivr CDN)
+│       │   ├── tokens.css                          # 색상·간격·폰트·radius CSS 변수 (공통 기준값)
+│       │   ├── base.css                            # 기본 요소·포커스·.container
+│       │   ├── layout.css                          # 고객·관리자 레이아웃
+│       │   └── components.css                      # 공통 UI 컴포넌트
+│       ├── layouts/
+│       │   ├── CustomerLayout.jsx                  # 고객: 공지 바·헤더·본문·푸터
+│       │   └── AdminLayout.jsx                     # 관리자: 헤더·메뉴(활성 표시)·본문
+│       ├── components/common/                      # 공통 UI (index.js에서 한 번에 import)
+│       │   ├── Button / InputField / TextareaField / SelectField
+│       │   ├── Modal / ConfirmDialog
+│       │   ├── StateMessages.jsx                   # LoadingState·EmptyState·ErrorState
+│       │   └── PageHeader.jsx                      # 페이지 제목·설명·작업 버튼
 │       └── pages/
 │           ├── CustomerPage.jsx                    # /customer
 │           ├── NotFoundPage.jsx                    # 404
-│           └── admin/
-│               ├── AdminProductsPage.jsx           # /admin/products
-│               └── AdminOrdersPage.jsx             # /admin/orders
+│           ├── admin/
+│           │   ├── AdminProductsPage.jsx           # /admin/products
+│           │   └── AdminOrdersPage.jsx             # /admin/orders
+│           └── dev/UiGuidePage.jsx                 # /ui-guide (개발 서버 전용, 배포 빌드 제외)
 ├── .gitignore
 └── README.md
 ```
@@ -844,7 +859,9 @@ npm run build   # 프로덕션 빌드 (frontend/dist)
 | http://localhost:5173/customer | 고객 상품·주문 |
 | http://localhost:5173/admin/products | 관리자 상품 관리 |
 | http://localhost:5173/admin/orders | 관리자 주문 관리 |
-| 그 외 경로 | 404 안내 |
+| http://localhost:5173/admin | `/admin/products`로 이동 |
+| http://localhost:5173/ui-guide | 공통 UI 확인 화면 (`npm run dev`에서만, 예시 데이터) |
+| 그 외 경로 | 404 안내 (`/admin/*`는 관리자 레이아웃 안에서 표시) |
 
 포트 5173은 `strictPort`로 고정되어 있어, 사용 중이면 다른 포트로 넘어가지 않고 실행이 실패합니다.
 

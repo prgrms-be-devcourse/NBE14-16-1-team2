@@ -1,0 +1,16 @@
+/*
+ * SUIT 웹폰트 (https://github.com/sun-typeface/SUIT, SIL Open Font License 1.1)
+ * 가변 폰트 한 파일로 100~900 두께를 모두 쓴다. 버전은 2.0.5로 고정.
+ * 배포처 CSS에는 font-display가 없어서, 폰트를 받는 동안 글자가 안 보이지 않도록 직접 선언한다.
+ * URL을 바꾸면 index.html의 preload 주소도 같이 바꾼다.
+ */
+@font-face {
+  font-family: 'SUIT Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src:
+    url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2.0.5/fonts/variable/woff2/SUIT-Variable.woff2')
+      format('woff2-variations'),
+    url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2.0.5/fonts/variable/woff2/SUIT-Variable.woff2') format('woff2');
+}

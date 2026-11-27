@@ -1,0 +1,87 @@
+/*
+ * 공통 디자인 기준값 (CSS 변수)
+ * Figma "Ecommerce Website Wireframe" 기준: 옅은 회청색 바탕 + 검정 글씨의 흑백 톤,
+ * 각진 모서리, 그림자 없음. 카페 포인트 색(커피 브라운)은 현재 메뉴 표시 등에만 절제해서 쓴다.
+ * 각 페이지·기능 컴포넌트는 색상·간격·폰트 크기를 숫자로 직접 쓰지 말고 아래 변수를 사용한다.
+ * 글씨 색은 모든 바탕색 대비 4.5:1 이상이 되도록 정했다.
+ */
+:root {
+  /* 색상 - 바탕 */
+  --color-bg: #eff2f7; /* 페이지·헤더·푸터 공통 바탕 (Figma 프레임 색) */
+  --color-surface: #ffffff; /* 입력창·모달·안내 상자처럼 바탕 위에 올라오는 면 */
+  --color-surface-strong: #e2e6ed; /* 선택·hover 강조 바탕 */
+  --color-placeholder: #c4c4c4; /* 상품 이미지가 없을 때 자리 표시 (Figma 이미지 박스 색) */
+  --color-inverse-bg: #000000; /* 공지 바·푸터 하단·관리자 헤더 (흰 글씨 사용) */
+
+  /* 색상 - 글씨 */
+  --color-text: #000000; /* 본문·제목 */
+  --color-text-muted: #5d6168; /* 보조 설명 (바탕 대비 5.5:1, 흰 면 대비 6.2:1) */
+  --color-text-inverse: #ffffff; /* 어두운 바탕 위 글씨 */
+
+  /* 색상 - 테두리 */
+  --color-border: #c4c8ce; /* 구분선·안내 상자 테두리 */
+  --color-border-input: #8d9095; /* 입력창 테두리 (흰 면 대비 3:1 이상) */
+  --color-border-strong: #000000; /* 보조 버튼·선택 상자 강조 */
+
+  /* 색상 - 동작 */
+  --color-primary: #111111; /* 기본 버튼: Figma처럼 검정 바탕 + 흰 글씨 */
+  --color-primary-hover: #333333;
+  --color-accent: #6b4423; /* 카페 포인트 색 (커피 브라운): 현재 메뉴 표시 등 작은 강조에만 */
+  --color-accent-soft: #e2e6ed; /* 관리자 현재 메뉴 바탕 */
+
+  /* 색상 - 상태 */
+  --color-danger: #b42318; /* 흰 글씨 대비 약 6.6:1 */
+  --color-danger-hover: #912018;
+  --color-danger-soft: #fdf0ef;
+  --color-focus: #2563eb; /* 키보드 포커스 링 */
+
+  /* 간격 (4px 단위) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* 타이포그래피 */
+  /* SUIT는 styles/fonts.css에서 불러온다. 불러오기 전·실패 시에는 시스템 폰트로 표시 */
+  --font-family:
+    'SUIT Variable', SUIT, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic',
+    'Segoe UI', sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 36px; /* 페이지 제목 (Figma "Shop") */
+  /* 글씨 두께: 용도별로 아래 세 가지만 사용 */
+  --font-weight-body: 400; /* 본문·설명 */
+  --font-weight-ui: 600; /* 메뉴·버튼·입력 라벨 */
+  --font-weight-heading: 700; /* 제목·로고 */
+  --line-height-tight: 1.25; /* 제목 */
+  --line-height-normal: 1.6; /* 본문 */
+  --letter-spacing-tight: -0.03em; /* 제목 */
+  --letter-spacing-wide: 0.08em; /* 공지 바·저작권 문구 */
+
+  /* 모서리·그림자: Figma처럼 각진 형태, 그림자는 떠 있는 모달에만 */
+  --radius-sm: 0;
+  --radius-md: 2px;
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 16%);
+
+  /* 레이아웃 */
+  --container-width: 1120px; /* Figma 1400px 프레임 안 콘텐츠 폭 */
+  --page-gutter: 24px;
+  --notice-bar-height: 40px;
+  --header-height: 60px;
+  --admin-sidebar-width: 208px;
+  --control-height: 40px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --page-gutter: 16px;
+    --font-size-2xl: 28px;
+  }
+}
