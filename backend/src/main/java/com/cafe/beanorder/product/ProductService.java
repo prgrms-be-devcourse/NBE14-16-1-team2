@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
  *
  * <ul>
  *   <li>고객 조회: 삭제된 상품은 목록에서 빠지고, 상세는 404(PRODUCT_NOT_FOUND).</li>
- *   <li>관리자: 등록·수정·삭제. (관리자용 목록·상세 조회는 다음 작업에서 추가)</li>
+ *   <li>관리자 조회: 삭제된 상품도 포함.</li>
  *   <li>삭제: 행을 지우지 않고 is_deleted 만 true 로 바꾼다.</li>
  *   <li>이미 삭제된 상품의 수정·삭제는 404(PRODUCT_NOT_FOUND). 복구 기능이 없으므로 삭제 상품은 더 바꾸지 않는다.</li>
  * </ul>
@@ -42,6 +42,16 @@ public class ProductService {
 	}
 
 	// ===== 관리자 =====
+
+	public List<AdminProductResponse> get_admin_products() {
+		return productRepository.findAllByOrderByIdAsc().stream()
+			.map(AdminProductResponse::from)
+			.toList();
+	}
+
+	public AdminProductResponse get_admin_product(Long productId) {
+		return AdminProductResponse.from(find_product(productId));
+	}
 
 	@Transactional
 	public AdminProductResponse create_product(ProductRequest request) {
@@ -74,9 +84,13 @@ public class ProductService {
 		find_active_product(productId).mark_deleted();
 	}
 
-	private Product find_active_product(Long productId) {
-		Product product = productRepository.findById(productId)
+	private Product find_product(Long productId) {
+		return productRepository.findById(productId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+	}
+
+	private Product find_active_product(Long productId) {
+		Product product = find_product(productId);
 		if (product.isDeleted()) {
 			throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);
 		}

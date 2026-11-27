@@ -2,8 +2,8 @@
 
 회원가입 없이 이메일만으로 원두를 주문하고, 관리자가 상품과 주문·배송 상태를 관리하는 웹 서비스입니다.
 
-> **현재 단계: 환경 세팅 완료 (초기 환경 구성, 공통 응답·예외 처리·CORS, 공통 엔티티) + 관리자 인증 백엔드 구현 (`feature/admin-auth`, 리뷰 전) + 상품 API 구현 (`feature/product-api`, 리뷰 전)**
-> 이 문서의 비즈니스 규칙·ERD·API 목록은 **후속 개발 기준**입니다. 상품 API 5개는 구현(리뷰 전)했고, 관리자용 상품 목록·상세 조회와 주문 업무 API는 아직 구현되지 않았습니다.
+> **현재 단계: 환경 세팅 완료 (초기 환경 구성, 공통 응답·예외 처리·CORS, 공통 엔티티) + 관리자 인증 백엔드 구현 (`feature/admin-auth`, 리뷰 전) + 상품 API 5개 머지 (PR #11) + 관리자용 상품 목록·상세 조회 구현 (`feature/admin-product-query`, 리뷰 전)**
+> 이 문서의 비즈니스 규칙·ERD·API 목록은 **후속 개발 기준**입니다. 상품 API 5개는 머지됐고(PR #11), 관리자용 상품 목록·상세 조회는 구현(리뷰 전)했으며, 주문 업무 API는 아직 구현되지 않았습니다.
 > 지금까지 구현된 것은 [3. 주요 기능과 구현 현황](#3-주요-기능과-구현-현황)에서 ✅로 표시한 항목뿐입니다.
 
 ## 📌 목차
@@ -104,7 +104,7 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 
 | 기능 | 상태 |
 |---|---|
-| 원두 상품 목록·상세 조회 (삭제 상품 제외) | 🟨 |
+| 원두 상품 목록·상세 조회 (삭제 상품 제외) | ✅ |
 | 이메일·주소·우편번호로 주문 생성 | ⬜ |
 | 배송 그룹 계산(오후 2시 기준)과 주문 병합 | ⬜ |
 
@@ -112,9 +112,9 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 
 | 기능 | 상태 |
 |---|---|
-| 상품 등록·수정·논리 삭제 | 🟨 |
-| 관리자용 상품 목록·상세 조회 (삭제 상품 포함, `isDeleted` 표시) | ⬜ (다음 작업) |
-| local 실행 시 기본 상품 자동 등록 (상품 테이블이 비어 있을 때만) | 🟨 |
+| 상품 등록·수정·논리 삭제 | ✅ |
+| 관리자용 상품 목록·상세 조회 (삭제 상품 포함, `isDeleted` 표시) | 🟨 |
+| local 실행 시 기본 상품 자동 등록 (상품 테이블이 비어 있을 때만) | ✅ |
 | 주문 목록 조회 | ⬜ |
 | 배송 상태 자동 전환 스케줄러 | ⬜ |
 | 관리자 로그인 API (`POST /api/admin/login`, 비밀번호 → 토큰) | 🟨 |
@@ -307,19 +307,19 @@ flowchart LR
 
 ### 7-1. 전체 API
 
-API 명세 기준 관리자 인증 1개, 상품 7개, 주문 6개입니다. **관리자 로그인 1개와 상품 5개를 구현(🟨 리뷰 전)했고, 관리자용 상품 목록·상세 2개와 주문 6개는 아직 구현되지 않았습니다.**
+API 명세 기준 관리자 인증 1개, 상품 7개, 주문 6개입니다. **관리자 로그인 1개와 상품 5개(PR #11)를 구현했고, 관리자용 상품 목록·상세 2개는 구현(🟨 리뷰 전), 주문 6개는 아직 구현되지 않았습니다.**
 상품 API의 요청·응답 필드는 ERD 기준으로 정해 구현했습니다 ([7-6](#7-6-상품-api), 팀 확인 필요). 주문 API의 요청·응답 필드는 명세가 완성되지 않아 **미확정**입니다. ([14-2. 명세 보완 필요 사항](#14-2-명세-보완-필요-사항) 참고)
 
 | 구분 | 기능 | 사용자 | Method | URL | 성공 코드 | 설명 | 구현 상태 | 상세 명세 링크 |
 |---|---|---|---|---|---|---|---|---|
 | 인증 | 관리자 로그인 | 관리자 | `POST` | `/api/admin/login` | 200 | 비밀번호 확인 후 토큰 발급 ([7-5](#7-5-관리자-인증)) | 🟨 구현·테스트 통과 | — |
-| 상품 | 상품 목록 조회 | 고객 | `GET` | `/api/products` | 200 | 삭제되지 않은 상품 목록 ([7-6](#7-6-상품-api)) | 🟨 구현·테스트 통과 | — |
-| 상품 | 상품 상세 조회 | 고객 | `GET` | `/api/products/{productId}` | 200 | 상품 1건 조회. 없거나 삭제된 상품은 404 | 🟨 구현·테스트 통과 | — |
-| 상품 | 상품 등록 | 관리자 | `POST` | `/api/admin/products` | 201 | 상품 등록 | 🟨 구현·테스트 통과 | — |
-| 상품 | 상품 수정 | 관리자 | `PUT` | `/api/admin/products/{productId}` | 200 | 상품 정보 전체 교체. 없거나 삭제된 상품은 404 | 🟨 구현·테스트 통과 | — |
-| 상품 | 상품 삭제 | 관리자 | `DELETE` | `/api/admin/products/{productId}` | 204 | 실제 삭제 대신 `is_deleted` 플래그 수정. 없거나 이미 삭제된 상품은 404 | 🟨 구현·테스트 통과 | — |
-| 상품 | 관리자용 상품 목록 | 관리자 | `GET` | `/api/admin/products` | 200 | 관리자 상품 관리 화면용. 삭제 상품 포함, `isDeleted` 표시 | ⬜ 미구현 (다음 작업) | — |
-| 상품 | 관리자용 상품 상세 | 관리자 | `GET` | `/api/admin/products/{productId}` | 200 | 관리자 상세 화면용. 삭제 상품도 조회 | ⬜ 미구현 (다음 작업) | — |
+| 상품 | 상품 목록 조회 | 고객 | `GET` | `/api/products` | 200 | 삭제되지 않은 상품 목록 ([7-6](#7-6-상품-api)) | ✅ 완료 (PR #11) | — |
+| 상품 | 상품 상세 조회 | 고객 | `GET` | `/api/products/{productId}` | 200 | 상품 1건 조회. 없거나 삭제된 상품은 404 | ✅ 완료 (PR #11) | — |
+| 상품 | 상품 등록 | 관리자 | `POST` | `/api/admin/products` | 201 | 상품 등록 | ✅ 완료 (PR #11) | — |
+| 상품 | 상품 수정 | 관리자 | `PUT` | `/api/admin/products/{productId}` | 200 | 상품 정보 전체 교체. 없거나 삭제된 상품은 404 | ✅ 완료 (PR #11) | — |
+| 상품 | 상품 삭제 | 관리자 | `DELETE` | `/api/admin/products/{productId}` | 204 | 실제 삭제 대신 `is_deleted` 플래그 수정. 없거나 이미 삭제된 상품은 404 | ✅ 완료 (PR #11) | — |
+| 상품 | 관리자용 상품 목록 | 관리자 | `GET` | `/api/admin/products` | 200 | 관리자 상품 관리 화면용. 삭제 상품 포함, `isDeleted` 표시 | 🟨 구현·테스트 통과 | — |
+| 상품 | 관리자용 상품 상세 | 관리자 | `GET` | `/api/admin/products/{productId}` | 200 | 관리자 상세 화면용. 삭제 상품도 조회 | 🟨 구현·테스트 통과 | — |
 | 주문 | 주문 생성 | 고객 | `GET` ⚠️ | `/api/orders` | 201 | 장바구니에서 주문 생성 · **Method 확인 필요** · 요청·응답 미확정 | ⬜ 미구현 | — |
 | 주문 | 주문 목록 조회 | 관리자 | `GET` | `/api/admin/orders` | 200 | 관리자 주문 목록 · 요청·응답 미확정 | ⬜ 미구현 | — |
 | 주문 | 주문 상세 조회 | 관리자 | `GET` | `/api/admin/orders/{orderId}` | 200 | 관리자 주문 1건 조회 · 요청·응답 미확정 | ⬜ 미구현 | — |
@@ -608,17 +608,17 @@ await request_admin(`/api/admin/products/${productId}`, { method: 'PUT', body: p
 
 ### 7-6. 상품 API
 
-> `feature/product-api` (리뷰 전). 요청·응답 필드는 ERD 기준으로 정했으며 **팀 확인이 필요**합니다.
-> 이번 범위: 고객 목록·상세 조회, 관리자 등록·수정·논리 삭제 (5개). 관리자용 목록·상세 조회와 상품 화면은 다음 작업입니다.
+> 고객 목록·상세 조회와 관리자 등록·수정·논리 삭제(5개)는 PR #11로 `dev`에 머지됐습니다. 관리자용 목록·상세 조회(2개)는 `feature/admin-product-query`(리뷰 전)입니다. 상품 화면은 다음 작업입니다.
+> 요청·응답 필드는 ERD 기준으로 정했으며 **팀 확인이 필요**합니다.
 
 구현 위치: `backend/src/main/java/com/cafe/beanorder/product/`
 
 | 클래스 | 역할 |
 |---|---|
 | `ProductController` | 고객 API (`/api/products`), 삭제되지 않은 상품만 조회 |
-| `AdminProductController` | 관리자 API (`/api/admin/products`), 등록·수정·논리 삭제. 토큰 검사는 [7-5](#7-5-관리자-인증)의 보안 설정이 담당. 관리자용 목록·상세 조회는 다음 작업 |
+| `AdminProductController` | 관리자 API (`/api/admin/products`), 삭제 상품 포함 목록·상세 조회, 등록·수정·논리 삭제. 토큰 검사는 [7-5](#7-5-관리자-인증)의 보안 설정이 담당 |
 | `ProductService` | 조회·등록·수정·삭제 처리, 없는 상품은 `BusinessException(PRODUCT_NOT_FOUND)` |
-| `ProductRepository` | 고객용 `findAllByIsDeletedFalseOrderByIdAsc`·`findByIdAndIsDeletedFalse`, 관리자 수정·삭제는 기본 `findById` 후 삭제 여부 확인 |
+| `ProductRepository` | 고객용 `findAllByIsDeletedFalseOrderByIdAsc`·`findByIdAndIsDeletedFalse`, 관리자용 `findAllByOrderByIdAsc`·`findById` (수정·삭제는 `findById` 후 삭제 여부 확인) |
 | `ProductRequest` | 등록·수정 요청 (record) |
 | `ProductResponse` / `AdminProductResponse` | 고객용 / 관리자용 응답 (record) |
 | `ProductDataInitializer` | local 프로필에서 상품 테이블이 비어 있으면 기본 상품 등록 |
@@ -647,8 +647,8 @@ await request_admin(`/api/admin/products/${productId}`, { method: 'PUT', body: p
 | `isDeleted` | — | O |
 | `createdAt`, `updatedAt` | — | O (ISO-8601 `LocalDateTime` 문자열, Asia/Seoul) |
 
-- 고객 API 2개는 고객용 응답, 관리자 등록·수정은 관리자용 응답을 반환합니다. 삭제는 204 빈 본문입니다. (관리자용 목록·상세 조회도 관리자용 응답을 쓸 예정)
-- 목록은 `productId` 오름차순이며 페이지 나누기는 없습니다.
+- 고객 API 2개는 고객용 응답, 관리자 API 4개(목록·상세·등록·수정)는 관리자용 응답을 반환합니다. 삭제는 204 빈 본문입니다.
+- 목록(고객·관리자)은 `productId` 오름차순이며 페이지 나누기는 없습니다. 관리자 목록·상세에는 삭제된 상품도 `isDeleted: true`로 포함됩니다.
 
 #### 오류
 
@@ -815,7 +815,8 @@ await request_admin(`/api/admin/products/${productId}`, { method: 'PUT', body: p
 | 2.3 | 환경 세팅 | 공통 응답·예외 처리·CORS 설정 | D | 11.27 | 11.27 | 완료 (PR #2 `dev` 머지) | 공통 모듈 (`global/error`, `global/config`) |
 | 2.4 | 환경 세팅 | 공통 엔티티 구성 (Product, Order, OrderItem) | 미확인 | 미확인 | 미확인 | 완료 (PR #4 `dev` 머지) | `product`·`order` 엔티티, `JpaAuditingConfig` |
 | 미확인 | 관리자 | 관리자 로그인 API·관리자 API 토큰 검사 | 미확인 | 미확인 | 미확인 | 구현·테스트 통과, PR 전 (`feature/admin-auth`) | `admin/`, `global/security/` |
-| 미확인 | 상품 | 상품 API (고객 조회 2개, 관리자 등록·수정·삭제 3개)·local 기본 상품 | 미확인 | 미확인 | 미확인 | 구현·테스트 통과, PR 전 (`feature/product-api`) | `product/` |
+| 미확인 | 상품 | 상품 API (고객 조회 2개, 관리자 등록·수정·삭제 3개)·local 기본 상품 | A | 11.26 ※ | 11.27 ※ | 완료 (PR #11 `dev` 머지) | `product/` |
+| 미확인 | 상품 | 관리자용 상품 목록·상세 조회 API | A | 11.27 ※ | 미확인 | 구현·테스트 통과, PR 전 (`feature/admin-product-query`) | `product/` |
 
 ※ WBS 번호·담당·계획 일정이 확인되지 않아 실제 작업일을 적었습니다.
 
@@ -962,7 +963,7 @@ test 프로필 H2 인메모리 DB와 `EntityManager`로 검증했습니다. 물�
 | 실행 jar (local 프로필, 인메모리 DB로 수동 확인) | `ADMIN_PASSWORD` 없이 실행 시 기본 비밀번호 `admin` 로그인 200, `1` 등 다른 값 401. 명시적 비밀번호 설정 실행 기록: 잘못된 비밀번호 401, 로그인 토큰 43자, 토큰 없는 `/api/admin/orders` 401 + CORS 헤더 + `WWW-Authenticate`, 토큰 있으면 404(API 미구현), preflight 200, `/api/products` 404, 로그에 비밀번호·토큰 없음 |
 | 프론트·백엔드 연동 | **미확인** (React 로그인 화면 미구현) |
 
-### 상품 API 검증 결과 (`feature/product-api`, 2026-11-27, Windows 11)
+### 상품 API 검증 결과 (`feature/product-api`, PR #11, 2026-11-27, Windows 11)
 
 실제 Spring Security 필터 체인을 포함한 MockMvc(`springSecurity()`)로 검증했습니다. 관리자 API는 테스트에서 `POST /api/admin/login`으로 받은 토큰을 붙여 호출합니다.
 
@@ -976,8 +977,19 @@ test 프로필 H2 인메모리 DB와 `EntityManager`로 검증했습니다. 물�
 | 관리자 인증 | 토큰 없이 관리자 API 3개(등록·수정·삭제) 모두 401 `UNAUTHORIZED`이고 데이터 변경 없음, 미발급 토큰 401이고 삭제 안 됨, 고객 API는 토큰 없이 200 |
 | 기본 상품 등록 | 비어 있을 때만 4개 등록, 두 번 실행해도 중복 없음, 기존 상품이 있으면 등록 안 함, test 프로필에서 빈 등록 안 됨 |
 | 기존 테스트 수정 | `AdminAuthIntegrationTest`의 "없는 공개 경로 404" 확인 경로를 `/api/products`(이제 존재) → `/api/not-existing-path`로 변경 |
-| local 프로필 실행·Postman | 상품 API 수동 호출 정상 (**관리자 인증 반영 전**, 관리자 목록·상세 조회 분리 전 기준). 현재 구성(인증 반영, API 5개)에서 토큰을 붙인 수동 호출과 기본 상품 자동 등록은 **미확인** |
+| local 프로필 실행·Postman | 기본 상품 4개 자동 등록, 고객 조회, 토큰 없이 401, 로그인 후 등록·수정·삭제, 삭제 후 고객 404·재삭제 404, 잘못된 입력 400, 재시작 후 삭제 유지 확인 |
 | 프론트·백엔드 연동 | **미확인** (상품 화면 미구현) |
+
+### 관리자용 상품 목록·상세 조회 검증 결과 (`feature/admin-product-query`, 2026-11-27, Windows 11)
+
+| 항목 | 결과 |
+|---|---|
+| `gradlew.bat clean build` | 성공, **테스트 125개 통과** (기존 122개 + 관리자 상품 조회 3개). 관리자 주문 취소·삭제(PR #14)·공통 레이아웃(PR #13)·관리자 로그인 화면(PR #15) 반영 후 기준 |
+| 관리자 목록 | 200, 삭제 상품 포함 `productId` 오름차순, `isDeleted`·`createdAt`·`updatedAt` 포함 |
+| 관리자 상세 | 200, 삭제된 상품도 조회(`isDeleted: true`). 없는 상품 404 `PRODUCT_NOT_FOUND` |
+| 삭제 후 | 고객 상세 404, 관리자 상세 200 + `isDeleted: true` |
+| 관리자 인증 | 토큰 없이 목록·상세 포함 관리자 API 5개 모두 401 |
+| local 프로필 실행·Postman | 관리자 목록에 삭제 상품 포함(`isDeleted: true`)·ID 오름차순, 관리자 상세에서 삭제 상품 200·없는 상품 404, 같은 상품이 고객 목록·상세에서는 숨겨짐(404), 토큰 없이 관리자 목록·상세 401 확인 |
 
 ---
 
@@ -1018,7 +1030,7 @@ test 프로필 H2 인메모리 DB와 `EntityManager`로 검증했습니다. 물�
 | 장바구니 설명 | 주문 생성 항목에 장바구니 이동·프론트 state 보관 설명 | 화면 이동(React 라우팅)과 주문 생성 API가 한 항목에 섞여 있음 | 장바구니는 프론트 라우팅·state, API는 주문 저장만 담당 | 미확정 |
 | 상품 목록 조회 예시 | `userId`, `grade`, `attendanceItems` 등 출결 템플릿 예시 | 예시 전체가 카페 상품과 무관한 템플릿 잔존 | ERD 기준 상품 필드(`productId`, `productName`, `price`, `origin` 등)로 교체 | 코드는 ERD 기준으로 구현 ([7-6](#7-6-상품-api)), 노션 수정은 미반영 |
 | 상품 상세·등록·수정·삭제 | 요청·응답 필드 표가 비어 있음 | 계약이 정해지지 않음 | ERD 기준 필드로 작성 | 코드는 ERD 기준으로 구현 ([7-6](#7-6-상품-api)), 팀 확인 필요 |
-| 관리자용 상품 목록·상세 | 팀 표에 추가됨 (`GET /api/admin/products`, `/{productId}`) | 이전 API 목록(상품 5개)에 없었음 | 상품 7개로 목록 갱신 | 목록에 반영, 구현은 다음 작업 (A 역할 다음 단계) |
+| 관리자용 상품 목록·상세 | 팀 표에 추가됨 (`GET /api/admin/products`, `/{productId}`) | 이전 API 목록(상품 5개)에 없었음 | 상품 7개로 목록 갱신 | 목록에 반영, 구현 (`feature/admin-product-query`, 팀 확인 필요) |
 | 주문 6개 상세 예시 | `userId`, `name`, `grade`, `phoneNumber`, `birth` 등 | 예시 전체가 다른 서비스 템플릿이며 카페 주문 필드(`email`, `address`, `zipcode`, 주문 상품·수량)가 없음 | ERD 기준 주문 필드로 교체 | 미확정 |
 | 상세 Status 표 | 공통 200/400 틀 | 상단 성공 코드(201·204)와 불일치, 404·409 누락 | 성공 코드를 상단과 맞추고 400·404·409 오류 코드 명시 | 미확정 |
 | 삭제 플래그 이름 | 명세 `is_delete`, ERD `is_deleted` | 이름 불일치 | DB는 ERD `is_deleted`, JSON은 `isDeleted`로 통일 | 코드는 제안대로 구현 (DB `is_deleted`, JSON `isDeleted`), 명세 수정은 미반영 |
