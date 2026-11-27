@@ -1,0 +1,31 @@
+/* 개발 전용 공통 UI 가이드 화면 스타일 */
+.ui-guide__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.ui-guide__heading {
+  font-size: var(--font-size-lg);
+}
+
+.ui-guide__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ui-guide__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 480px;
+}
+
+.ui-guide__note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

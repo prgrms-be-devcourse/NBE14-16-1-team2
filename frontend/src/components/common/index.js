@@ -1,0 +1,10 @@
+// 공통 UI 컴포넌트 모음. 페이지에서는 이 파일 하나에서 가져다 쓴다.
+// 예) import { Button, PageHeader } from '../components/common/index.js'
+export { default as Button } from './Button.jsx'
+export { default as ConfirmDialog } from './ConfirmDialog.jsx'
+export { default as InputField } from './InputField.jsx'
+export { default as Modal } from './Modal.jsx'
+export { default as PageHeader } from './PageHeader.jsx'
+export { default as SelectField } from './SelectField.jsx'
+export { EmptyState, ErrorState, LoadingState } from './StateMessages.jsx'
+export { default as TextareaField } from './TextareaField.jsx'
