@@ -274,6 +274,48 @@ class AdminOrderControllerTest {
     }
 
     @Test
+    void update_order_merge_ignores_leading_and_trailing_spaces_only() throws Exception {
+        Long colombiaId = save_product("콜롬비아", 5000, false);
+        Product colombia = entityManager.find(Product.class, colombiaId);
+        LocalDate deliveryDate = LocalDate.of(2026, 11, 26);
+
+        // 원래 있던 주문 B (마포)
+        Order target = Order.create("a@test.com", "서울시 마포구 월드컵로 2", "03900",
+                LocalDateTime.of(2026, 11, 26, 9, 0), deliveryDate);
+        target.add_order_item(colombia, 1);
+        entityManager.persist(target);
+
+        // 수정할 주문 C (강남) - 주소 중간 띄어쓰기만 다르게 수정할 예정
+        Order spaceDifferent = Order.create("a@test.com", "서울시 강남구 테헤란로 1", "06234",
+                LocalDateTime.of(2026, 11, 26, 10, 0), deliveryDate);
+        spaceDifferent.add_order_item(colombia, 1);
+        entityManager.persist(spaceDifferent);
+
+        // 수정할 주문 A (강남) - 앞뒤 공백만 붙여서 수정할 예정
+        Order edited = Order.create("a@test.com", "서울시 강남구 테헤란로 1", "06234",
+                LocalDateTime.of(2026, 11, 26, 11, 0), deliveryDate);
+        edited.add_order_item(colombia, 2);
+        entityManager.persist(edited);
+        entityManager.flush();
+        entityManager.clear();
+
+        // 중간 띄어쓰기가 다르면 다른 주소 → 병합 안 됨
+        mockMvc.perform(put("/api/admin/orders/{orderId}", spaceDifferent.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(update_body("서울시 마포구 월드컵로2", "03900", colombiaId, 1)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderId").value(spaceDifferent.getId()));
+
+        // 앞뒤 공백만 다르면 같은 주소 → B로 병합
+        mockMvc.perform(put("/api/admin/orders/{orderId}", edited.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(update_body("  서울시 마포구 월드컵로 2  ", "03900", colombiaId, 2)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderId").value(target.getId()))
+                .andExpect(jsonPath("$.items[0].quantity").value(3));   // 1 + 2
+    }
+
+    @Test
     void update_order_returns_409_when_not_ordered() throws Exception {
         Order order = save_order("a@test.com", LocalDateTime.of(2026, 11, 26, 13, 0), LocalDate.of(2026, 11, 26));
         Long ethiopiaId = save_product("에티오피아", 6000, false);
