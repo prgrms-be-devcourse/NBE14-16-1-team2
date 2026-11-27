@@ -119,7 +119,7 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 | 배송 상태 자동 전환 스케줄러 | ⬜ |
 | 관리자 로그인 API (`POST /api/admin/login`, 비밀번호 → 토큰) | 🟨 |
 | 관리자 API 토큰 검사 (`/api/admin/**` Bearer 토큰 보호, 만료) | 🟨 |
-| 관리자 로그인 화면·토큰 저장 (React) | ⬜ (연동 예시만 [7-5](#7-5-관리자-인증)에 문서화) |
+| 관리자 로그인 화면·토큰 저장·화면 보호·로그아웃 (React) | 🟨 ([7-5 프론트 인증 연동](#프론트-인증-연동-react)) |
 
 ### 공통
 
@@ -127,7 +127,7 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 |---|---|
 | 프론트·백엔드 API 연동 (브라우저에서 실제 API 호출) | ⬜ (CORS만 설정됨, 연동 미확인) |
 
-> ⚠️ **백엔드** `/api/admin/**`는 관리자 토큰으로 보호됩니다(🟨, 리뷰 전). 하지만 **React** `/admin/*` 화면은 아직 로그인 화면이 없어 **URL로 화면만 구분**하며, 누구나 화면을 열 수 있습니다. 화면을 숨기는 것과 서버의 권한 검사는 별개이며, 데이터 보호는 서버 토큰 검사가 담당합니다.
+> ⚠️ **백엔드** `/api/admin/**`는 관리자 토큰으로 보호됩니다(🟨, 리뷰 전). **React** `/admin/*` 화면은 토큰이 없으면 `/admin/login`으로 이동합니다(🟨, 리뷰 전). 화면을 숨기는 것과 서버의 권한 검사는 별개이며, 데이터 보호는 서버 토큰 검사가 담당합니다.
 
 ---
 
@@ -454,7 +454,7 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 
 ### 7-5. 관리자 인증
 
-> 상태: 🟨 백엔드 구현·테스트 통과, 리뷰·머지 전 (`feature/admin-auth`). React 로그인 화면은 **미구현**입니다.
+> 상태: 🟨 백엔드 구현·테스트 통과, 리뷰·머지 전 (`feature/admin-auth`). React 로그인 화면·연동은 [아래](#프론트-인증-연동-react)에 정리했습니다.
 > 구현 위치: `admin/` (로그인 API·설정·토큰 저장소), `global/security/` (보안 필터 체인)
 
 #### 로그인 API
@@ -544,52 +544,67 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 - 앞으로 쿠키 기반 인증으로 바꾸면 CSRF 보호를 다시 켜야 합니다.
 - 폼 로그인·HTTP Basic·기본 로그인 화면·로그아웃 페이지는 사용하지 않습니다.
 
-#### 프론트 연동 예시 (React 화면은 미구현, 담당자 참고용)
+#### 프론트 인증 연동 (React)
 
-명세에 따라 토큰은 `sessionStorage`에 저장합니다. 브라우저 탭을 닫으면 사라집니다.
+> 상태: 🟨 구현, 리뷰 전. 관리자 로그인 화면 `/admin/login`과 관리자 화면 보호·로그아웃을 구현했습니다.
+
+| 파일 | 역할 |
+|---|---|
+| `src/api/apiClient.js` | 공통 요청 `request_api`. `VITE_API_BASE_URL` + 경로 연결(슬래시 중복 제거), 오류를 `ApiError { kind, status, code, message }`로 변환. 인증 헤더 없음 |
+| `src/api/adminApi.js` | `login_admin(password)`, 관리자 요청 `request_admin(path, options)`. **`Authorization: Bearer` 는 여기서만** 붙임 |
+| `src/auth/adminTokenStorage.js` | 토큰 저장·조회·삭제를 이 파일에서만 처리 (`sessionStorage` 키 `adminToken`) |
+| `src/auth/AdminAuthProvider.jsx` · `adminAuthContext.js` | React 인증 상태 ↔ 저장소 동기화, `useAdminAuth()` 로 `{ isAuthenticated, authNotice, login, logout }` 제공 |
+| `src/auth/RequireAdminAuth.jsx` | 보호 라우트. 토큰이 없으면 `/admin/login` 으로 replace 이동 |
+| `src/pages/admin/AdminLoginPage.jsx` | 로그인 화면 (관리자 헤더·메뉴 없음) |
+
+**환경변수:** `frontend/.env.example`을 복사해 `frontend/.env.local`에 `VITE_API_BASE_URL=http://localhost:8080`을 설정합니다. 배포 주소는 소스에 넣지 않고 배포 환경변수로 설정합니다. 값이 없으면 요청을 보내지 않고 콘솔에 원인을 출력하며, 로그인 화면에 설정 오류를 안내합니다. 환경변수를 바꾼 뒤에는 개발 서버를 다시 시작합니다.
+
+**토큰 저장: 이번 구현의 선택으로 `sessionStorage` 사용** (팀 전체 최종 보안 정책은 아직 미확정 → [14-1](#14-1-미확정-정책))
+
+- 새로고침하면 유지되고, 탭을 닫으면 사라집니다. 비밀번호는 어디에도 저장·기록하지 않습니다.
+- 토큰은 불투명 문자열이므로 디코딩하거나 만료 시각을 추측하지 않습니다.
+- `sessionStorage`는 JavaScript로 읽을 수 있어 **XSS에 안전한 저장소가 아닙니다.** 사용자 입력을 HTML로 넣는 코드(`dangerouslySetInnerHTML` 등)를 피해야 합니다.
+- **토큰이 있다고 서버 검증이 끝난 것은 아닙니다.** 별도 검증 API가 없으므로, 서버 재시작·만료로 무효가 된 토큰은 실제 관리자 API가 401을 돌려줄 때 처리됩니다. (아직 관리자 화면이 API를 호출하지 않아, 지금은 화면 이동만으로는 무효 토큰을 알 수 없습니다)
+
+**라우팅**
+
+| 경로 | 동작 |
+|---|---|
+| `/admin/login` | 공개. 이미 로그인 상태면 `/admin/products`로 이동 |
+| `/admin` | 로그인 상태면 `/admin/products`, 아니면 `/admin/login` (replace) |
+| `/admin/products`, `/admin/orders`, `/admin/*` | 보호 라우트(`RequireAdminAuth`) 안의 `AdminLayout`. 토큰 없으면 `/admin/login` (replace) |
+
+**오류 처리**
+
+| 상황 | 처리 |
+|---|---|
+| 로그인 400 / 401 | 로그인 화면에 오류 표시 (로그인 상태 변화 없음) |
+| 로그인 네트워크 오류 / 5xx / 그 밖의 상태 | 원인을 구분한 문구로 표시. 본문이 비었거나 JSON이 아니어도 원래 status 유지 |
+| 관리자 요청 401 | 저장 토큰과 React 상태를 함께 지우고 `/admin/login`으로 이동, "로그인이 만료되었거나 인증이 유효하지 않습니다" 안내. `ApiError.kind === 'unauthorized'` |
+| 여러 관리자 요청이 동시에 401 | 요청에 쓴 토큰이 이미 지워졌으면 무시 → 이동·안내는 한 번만 |
+| 관리자 요청 400·404·409·500 | 로그인 상태 유지, `ApiError(kind 'http')`를 그대로 던짐 |
+
+**로그아웃:** 관리자 헤더의 "로그아웃" 버튼은 **브라우저의 토큰만 지우고** `/admin/login`으로 이동합니다. 백엔드에 로그아웃 API가 없으므로 **서버에 발급된 토큰은 즉시 폐기되지 않고 만료 시각까지 유효**합니다.
+
+**관리자 API 호출 예시 (상품·주문 화면 담당자용)**
 
 ```js
-// src/api/adminAuth.js (예시)
-const API_BASE_URL = 'http://localhost:8080'
-const TOKEN_KEY = 'adminToken'
+import { request_admin } from '../../api/adminApi.js'
 
-export async function login_admin(password) {
-  const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),           // 비밀번호는 요청에만 쓰고 저장하지 않음
-  })
-  if (!response.ok) {
-    const error = await response.json()          // { code, message }
-    throw new Error(error.message)
+async function load_orders() {
+  try {
+    const orders = await request_admin('/api/admin/orders')             // GET
+    setOrders(orders)
+  } catch (error) {
+    if (error.kind === 'unauthorized') return  // 로그인 화면으로 이동 중 (안내는 로그인 화면이 표시)
+    setErrorMessage(error.message)             // 400·404·409·500·네트워크 오류는 화면에 표시
   }
-  const { token } = await response.json()        // 래퍼 없이 { token }
-  sessionStorage.setItem(TOKEN_KEY, token)
 }
 
-// 관리자 API 호출에만 사용. 고객 API(/api/products, /api/orders)는 일반 fetch로 호출하고 토큰을 붙이지 않음
-export async function fetch_admin(path, options = {}) {
-  const token = sessionStorage.getItem(TOKEN_KEY)
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: { ...options.headers, Authorization: `Bearer ${token}` },
-  })
-  if (response.status === 401) {
-    sessionStorage.removeItem(TOKEN_KEY)         // 만료·무효 토큰 제거
-    window.location.assign('/admin/login')       // 로그인 다시 요청 (경로는 화면 구현 시 결정)
-    throw new Error('관리자 로그인이 필요합니다.')
-  }
-  return response
-}
+await request_admin(`/api/admin/products/${productId}`, { method: 'PUT', body: productForm })  // body는 객체 그대로
 ```
 
-| 규칙 | 설명 |
-|---|---|
-| 저장 | 로그인 성공 응답의 `token`만 `sessionStorage`에 저장. **비밀번호는 저장하지 않음** |
-| 전송 | `/api/admin/**` 호출에만 `Authorization: Bearer {token}` 추가. 고객 API에는 붙이지 않음 |
-| 401 처리 | 저장된 토큰을 지우고 로그인 화면으로 이동 |
-| 화면 숨김 ≠ 권한 | 토큰 유무로 관리자 메뉴를 숨기는 것은 사용자 편의일 뿐이고, 실제 권한 검사는 서버가 합니다 |
-| 보안 주의 | `sessionStorage`는 JavaScript로 읽을 수 있어 **XSS에 안전한 저장소가 아닙니다.** XSS가 생기면 토큰이 탈취될 수 있으므로 `dangerouslySetInnerHTML` 등 사용자 입력을 HTML로 넣는 코드를 피해야 합니다 |
+고객 API(`/api/products` 등)는 `request_api`를 사용하며 관리자 토큰을 붙이지 않습니다.
 
 ### 7-6. 상품 API
 
@@ -699,9 +714,17 @@ export async function fetch_admin(path, options = {}) {
 │   └── images/erd.png                              # ERD 이미지
 ├── frontend/
 │   ├── package.json / package-lock.json
+│   ├── .env.example                                # VITE_API_BASE_URL 예시 (.env.local 은 Git 제외)
 │   ├── vite.config.js                              # 개발 서버 포트 5173 고정
 │   └── src/
-│       ├── main.jsx / App.jsx                      # BrowserRouter, 라우트 정의 (고객·관리자 레이아웃 분리)
+│       ├── main.jsx / App.jsx                      # BrowserRouter, 라우트 정의 (고객·관리자 레이아웃 분리, 관리자 보호 라우트)
+│       ├── api/
+│       │   ├── apiClient.js                        # 공통 요청 request_api, ApiError (VITE_API_BASE_URL)
+│       │   └── adminApi.js                         # login_admin, 관리자 요청 request_admin (Bearer 토큰·401 처리)
+│       ├── auth/
+│       │   ├── adminTokenStorage.js                # 관리자 토큰 저장·조회·삭제 (sessionStorage)
+│       │   ├── AdminAuthProvider.jsx / adminAuthContext.js  # 인증 상태, useAdminAuth()
+│       │   └── RequireAdminAuth.jsx                # 관리자 보호 라우트
 │       ├── index.css                               # 전역 스타일 진입점 (styles/* import)
 │       ├── styles/
 │       │   ├── fonts.css                           # SUIT 웹폰트(@font-face, jsDelivr CDN)
@@ -711,7 +734,7 @@ export async function fetch_admin(path, options = {}) {
 │       │   └── components.css                      # 공통 UI 컴포넌트
 │       ├── layouts/
 │       │   ├── CustomerLayout.jsx                  # 고객: 공지 바·헤더·본문·푸터
-│       │   └── AdminLayout.jsx                     # 관리자: 헤더·메뉴(활성 표시)·본문
+│       │   └── AdminLayout.jsx                     # 관리자: 헤더(로그아웃)·메뉴(활성 표시)·본문
 │       ├── components/common/                      # 공통 UI (index.js에서 한 번에 import)
 │       │   ├── Button / InputField / TextareaField / SelectField
 │       │   ├── Modal / ConfirmDialog
@@ -721,6 +744,7 @@ export async function fetch_admin(path, options = {}) {
 │           ├── CustomerPage.jsx                    # /customer
 │           ├── NotFoundPage.jsx                    # 404
 │           ├── admin/
+│           │   ├── AdminLoginPage.jsx              # /admin/login (헤더·메뉴 없는 단독 화면)
 │           │   ├── AdminProductsPage.jsx           # /admin/products
 │           │   └── AdminOrdersPage.jsx             # /admin/orders
 │           └── dev/UiGuidePage.jsx                 # /ui-guide (개발 서버 전용, 배포 빌드 제외)
@@ -849,6 +873,7 @@ Invoke-WebRequest -Uri http://localhost:8080/api/admin/orders -Headers @{ Author
 ```powershell
 cd frontend
 npm install
+Copy-Item .env.example .env.local   # 처음 한 번: VITE_API_BASE_URL 설정 (이미 있으면 생략)
 npm run dev     # 개발 서버
 npm run build   # 프로덕션 빌드 (frontend/dist)
 ```
@@ -857,9 +882,10 @@ npm run build   # 프로덕션 빌드 (frontend/dist)
 |---|---|
 | http://localhost:5173/ | `/customer`로 이동 |
 | http://localhost:5173/customer | 고객 상품·주문 |
-| http://localhost:5173/admin/products | 관리자 상품 관리 |
-| http://localhost:5173/admin/orders | 관리자 주문 관리 |
-| http://localhost:5173/admin | `/admin/products`로 이동 |
+| http://localhost:5173/admin/login | 관리자 로그인 (백엔드 실행 필요) |
+| http://localhost:5173/admin/products | 관리자 상품 관리 (로그인 필요) |
+| http://localhost:5173/admin/orders | 관리자 주문 관리 (로그인 필요) |
+| http://localhost:5173/admin | 로그인 상태면 `/admin/products`, 아니면 `/admin/login` |
 | http://localhost:5173/ui-guide | 공통 UI 확인 화면 (`npm run dev`에서만, 예시 데이터) |
 | 그 외 경로 | 404 안내 (`/admin/*`는 관리자 레이아웃 안에서 표시) |
 
@@ -961,7 +987,8 @@ test 프로필 H2 인메모리 DB와 `EntityManager`로 검증했습니다. 물�
 
 | 항목 | 현재 상태 |
 |---|---|
-| 관리자 인증 방식 | 비밀번호(`ADMIN_PASSWORD`) → 서버 메모리 불투명 Bearer 토큰으로 **구현** (리뷰 전). React 로그인 화면은 미구현 |
+| 관리자 인증 방식 | 비밀번호(`ADMIN_PASSWORD`) → 서버 메모리 불투명 Bearer 토큰으로 **구현** (리뷰 전). React 로그인 화면 구현 (리뷰 전) |
+| 프론트 관리자 토큰 저장 위치 | **미확정**. 이번 구현은 `sessionStorage` 선택 (XSS에 안전하지 않음, 팀 최종 정책 아님) |
 | 관리자 토큰 유효 시간 | **미확정** (임시 1시간, `app.admin.token-ttl`로 변경 가능) |
 | 관리자 토큰 최대 보관 수와 초과 시 처리 | **미확정** (임시 100개, 초과 시 가장 오래된 토큰 제거) |
 | 관리자 로그아웃(서버 토큰 폐기) API | 명세에 없어 **미구현** (프론트에서 토큰 삭제만 가능) |

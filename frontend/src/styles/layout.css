@@ -199,6 +199,26 @@
   font-weight: var(--font-weight-ui);
 }
 
+.admin-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+/* 검정 헤더 위 보조 버튼: 흰 테두리·흰 글씨 */
+.admin-header__logout.btn--secondary {
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-color: var(--color-text-inverse);
+  color: var(--color-text-inverse);
+}
+
+.admin-header__logout.btn--secondary:hover:not(:disabled) {
+  background: var(--color-text-inverse);
+  color: var(--color-inverse-bg);
+}
+
 /* 어두운 헤더 위에서도 포커스 링이 보이도록 흰색 사용 */
 .admin-header :focus-visible {
   outline-color: var(--color-text-inverse);
@@ -292,5 +312,64 @@
 
   .admin-main {
     padding-top: var(--space-5);
+  }
+}
+
+/* ---------- 관리자 로그인 (헤더·메뉴 없는 단독 화면) ---------- */
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-6) var(--page-gutter);
+  background: var(--color-bg);
+}
+
+.auth-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 400px;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.auth-card__brand {
+  margin-bottom: calc(var(--space-4) * -1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-ui);
+}
+
+.auth-card__title {
+  font-size: var(--font-size-xl);
+}
+
+.auth-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.auth-card__submit {
+  width: 100%;
+}
+
+.auth-card__back {
+  align-self: flex-start;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.auth-card__back:hover {
+  color: var(--color-text);
+}
+
+@media (max-width: 640px) {
+  .auth-card {
+    padding: var(--space-5);
   }
 }

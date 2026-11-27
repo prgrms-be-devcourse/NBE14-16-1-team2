@@ -322,3 +322,44 @@
   padding: var(--space-4) var(--space-5);
   border-top: 1px solid var(--color-border);
 }
+
+/* ---------- 폼 전체 알림 (로그인 실패 등) ---------- */
+/* 오류: 색 + "!" 아이콘 + 문구 + 테두리로 함께 전달 */
+.form-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.form-alert__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-ui);
+  line-height: 1;
+}
+
+/* 안내 (로그인 만료 등) */
+.form-notice {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-strong);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
