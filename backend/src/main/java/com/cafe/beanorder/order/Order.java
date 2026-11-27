@@ -1,7 +1,12 @@
 package com.cafe.beanorder.order;
 
-import static com.cafe.beanorder.global.error.DomainPreconditions.require_text;
-import static com.cafe.beanorder.global.error.DomainPreconditions.require_value;
+import com.cafe.beanorder.global.error.BusinessException;
+import com.cafe.beanorder.global.error.ErrorCode;
+import com.cafe.beanorder.product.Product;
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -9,22 +14,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
-
-import com.cafe.beanorder.product.Product;
-
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import static com.cafe.beanorder.global.error.DomainPreconditions.require_text;
+import static com.cafe.beanorder.global.error.DomainPreconditions.require_value;
 
 /**
  * 주문 (테이블 orders, ORDER 는 SQL 예약어).
@@ -102,6 +93,14 @@ public class Order {
 	/** 읽기 전용 목록. 상세 추가는 add_order_item() 을 사용한다. */
 	public List<OrderItem> getOrderItems() {
 		return Collections.unmodifiableList(orderItems);
+	}
+
+    	/** 관리자 주문 취소. ORDERED 상태에서만 가능하고, 그 외 상태면 409. */
+	public void cancel() {
+		if (status != OrderStatus.ORDERED) {
+			throw new BusinessException(ErrorCode.ORDER_STATUS_CONFLICT);
+		}
+		this.status = OrderStatus.CANCELLED;
 	}
 
 }
