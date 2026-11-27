@@ -28,7 +28,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 		where o.id <> :orderId
 		  and o.email = :email
 		  and o.deliveryDate = :deliveryDate
-		  and o.address = :address
+		  and trim(o.address) = :address
 		  and o.status = :status
 		order by o.orderedAt asc
 		""")

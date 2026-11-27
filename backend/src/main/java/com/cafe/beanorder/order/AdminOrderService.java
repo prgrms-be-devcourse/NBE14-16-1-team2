@@ -59,7 +59,7 @@ public class AdminOrderService {
 
         // 병합: 같은 이메일·배송일·주소의 다른 주문이 있으면 그 주문으로 합치고, 수정한 주문은 삭제
         List<Order> mergeTargets = orderRepository.find_merge_targets(order.getId(), order.getEmail(),
-                order.getDeliveryDate(), order.getAddress(), OrderStatus.ORDERED);
+                order.getDeliveryDate(), order.getAddress().trim(), OrderStatus.ORDERED);
         if (!mergeTargets.isEmpty()) {
             Order target = mergeTargets.get(0);
             target.merge_from(order);
