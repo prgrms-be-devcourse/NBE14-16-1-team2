@@ -1,26 +1,15 @@
 package com.cafe.beanorder.order;
 
-import static com.cafe.beanorder.global.error.DomainPreconditions.require_positive;
-import static com.cafe.beanorder.global.error.DomainPreconditions.require_value;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
-
 import com.cafe.beanorder.product.Product;
-
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
+import static com.cafe.beanorder.global.error.DomainPreconditions.require_positive;
+import static com.cafe.beanorder.global.error.DomainPreconditions.require_value;
 
 /**
  * 주문 상세 (테이블 order_item). 주문-상세 양방향 관계의 주인(FK 보유)이다.
@@ -77,6 +66,19 @@ public class OrderItem {
 	/** 항목 금액 = 주문 당시 단가 × 수량. int 오버플로를 피하려고 곱하기 전에 long 으로 바꾼다. */
 	public long calculate_amount() {
 		return (long) orderPrice * quantity;
+	}
+
+    	/** 관리자 주문 수정에서 수량만 바꾼다. 주문 당시 상품명·단가 스냅샷은 그대로 둔다. */
+	void change_quantity(int quantity) {
+		this.quantity = require_positive(quantity, "quantity");
+	}
+
+	/** 주문 병합: 다른 주문의 상세를 옮길 때 주문 당시 상품명·단가를 그대로 복사한다. */
+	static OrderItem copy_of(Order order, OrderItem source) {
+		OrderItem copy = new OrderItem(order, source.product, source.quantity);
+		copy.productName = source.productName;
+		copy.orderPrice = source.orderPrice;
+		return copy;
 	}
 
 }

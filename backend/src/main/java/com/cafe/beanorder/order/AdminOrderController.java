@@ -31,6 +31,13 @@ public class AdminOrderController {
         return adminOrderService.get_order(orderId);
     }
 
+    // PUT /api/admin/orders/12  body: {"address":..., "zipcode":..., "items":[{"productId":1,"quantity":3}]}
+    @PutMapping("/{orderId}")
+    public OrderResponse update_order(@PathVariable Long orderId,
+                                      @Valid @RequestBody OrderUpdateRequest request) {
+        return adminOrderService.update_order(orderId, request);
+    }
+
     // PUT /api/admin/orders/12/status  body: {"status":"CANCELLED"}
     @PutMapping("/{orderId}/status")
     public OrderStatusResponse change_status(@PathVariable Long orderId,
