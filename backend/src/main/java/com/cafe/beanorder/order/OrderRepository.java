@@ -1,6 +1,7 @@
 package com.cafe.beanorder.order;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -36,4 +37,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 			@Param("deliveryDate") LocalDate deliveryDate,
 			@Param("address") String address,
 			@Param("status") OrderStatus status);
+
+    	/**
+	 * 스케줄러용 일괄 상태 변경: from 상태이면서 배송 예정일이 lastDeliveryDate 이하인 주문을 to 상태로 바꾼다.
+	 * "이하"로 잡아서 서버 중단으로 놓친 날의 주문도 다음 실행 때 함께 처리한다.
+	 */
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query("""
+		update Order o
+		set o.status = :to
+		where o.status = :from
+		  and o.deliveryDate <= :lastDeliveryDate
+		""")
+	int update_status_until(@Param("from") OrderStatus from,
+			@Param("to") OrderStatus to,
+			@Param("lastDeliveryDate") LocalDate lastDeliveryDate);
 }
