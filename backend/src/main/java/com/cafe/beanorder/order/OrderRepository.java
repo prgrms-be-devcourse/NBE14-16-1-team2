@@ -21,4 +21,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                               @Param("deliveryDate") LocalDate deliveryDate,
                               @Param("email") String email);
 
+    	/** 주문 병합 대상: 자기 자신을 뺀, 같은 이메일·배송일·주소의 다른 주문 (오래된 순) */
+	@Query("""
+		select o from Order o
+		where o.id <> :orderId
+		  and o.email = :email
+		  and o.deliveryDate = :deliveryDate
+		  and o.address = :address
+		  and o.status = :status
+		order by o.orderedAt asc
+		""")
+	List<Order> find_merge_targets(@Param("orderId") Long orderId,
+			@Param("email") String email,
+			@Param("deliveryDate") LocalDate deliveryDate,
+			@Param("address") String address,
+			@Param("status") OrderStatus status);
 }

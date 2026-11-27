@@ -10,9 +10,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static com.cafe.beanorder.global.error.DomainPreconditions.require_text;
 import static com.cafe.beanorder.global.error.DomainPreconditions.require_value;
@@ -56,7 +54,7 @@ public class Order {
 	@Column(name = "delivery_date", nullable = false)
 	private LocalDate deliveryDate;
 
-	@OneToMany(mappedBy = "order", cascade = CascadeType.PERSIST)
+	@OneToMany(mappedBy = "order", cascade = CascadeType.PERSIST, orphanRemoval = true)
 	private final List<OrderItem> orderItems = new ArrayList<>();
 
 	private Order(String email, String address, String zipcode, LocalDateTime orderedAt, LocalDate deliveryDate) {
@@ -101,6 +99,73 @@ public class Order {
 			throw new BusinessException(ErrorCode.ORDER_STATUS_CONFLICT);
 		}
 		this.status = OrderStatus.CANCELLED;
+	}
+
+    	/** 관리자 주문 수정: 주소·우편번호 변경. ORDERED 상태에서만 가능하고, 그 외 상태면 409. */
+	public void update(String address, String zipcode) {
+		require_ordered();
+		this.address = require_text(address, "address");
+		this.zipcode = require_text(zipcode, "zipcode");
+	}
+
+	/**
+	 * 관리자 주문 수정: 주문 상품 목록을 요청 목록으로 교체한다.
+	 * 이미 있던 상품은 수량만 바꿔 주문 당시 상품명·단가를 유지하고,
+	 * 새 상품은 현재 상품 정보로 추가하며, 요청에 없는 상품은 삭제된다(orphanRemoval).
+	 */
+	public void replace_order_items(List<Product> products, List<Integer> quantities) {
+		require_ordered();
+		Map<Long, OrderItem> existingItems = new HashMap<>();
+		for (OrderItem item : orderItems) {
+			existingItems.put(item.getProduct().getId(), item);
+		}
+
+		List<OrderItem> newItems = new ArrayList<>();
+		for (int i = 0; i < products.size(); i++) {
+			Product product = products.get(i);
+			int quantity = quantities.get(i);
+			OrderItem item = existingItems.remove(product.getId());
+			if (item != null) {
+				item.change_quantity(quantity);
+			} else {
+				item = OrderItem.create(this, product, quantity);
+			}
+			newItems.add(item);
+		}
+
+		orderItems.clear();
+		orderItems.addAll(newItems);
+	}
+
+	/**
+	 * 주문 병합: other 주문의 상세를 이 주문으로 합친다.
+	 * 같은 상품은 수량을 더하고 이 주문의 주문 당시 단가를 유지한다. other 는 호출한 쪽에서 삭제한다.
+	 */
+	public void merge_from(Order other) {
+		require_ordered();
+		for (OrderItem source : other.orderItems) {
+			OrderItem sameItem = find_item_by_product(source.getProduct().getId());
+			if (sameItem != null) {
+				sameItem.change_quantity(sameItem.getQuantity() + source.getQuantity());
+			} else {
+				orderItems.add(OrderItem.copy_of(this, source));
+			}
+		}
+	}
+
+	private OrderItem find_item_by_product(Long productId) {
+		for (OrderItem item : orderItems) {
+			if (item.getProduct().getId().equals(productId)) {
+				return item;
+			}
+		}
+		return null;
+	}
+
+	private void require_ordered() {
+		if (status != OrderStatus.ORDERED) {
+			throw new BusinessException(ErrorCode.ORDER_STATUS_CONFLICT);
+		}
 	}
 
 }
