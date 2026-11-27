@@ -297,7 +297,8 @@ class AdminAuthIntegrationTest {
 
 	@Test
 	void public_paths_keep_existing_404_and_405() throws Exception {
-		mockMvc.perform(get("/api/products"))
+		// /api/products 는 상품 API 구현으로 생긴 경로라, 없는 공개 경로로 404 유지를 확인한다.
+		mockMvc.perform(get("/api/not-existing-path"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
 		mockMvc.perform(post("/api/orders").contentType(MediaType.APPLICATION_JSON).content("{}"))
