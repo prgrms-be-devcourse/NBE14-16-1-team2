@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,8 @@ class GlobalExceptionHandlerTest {
 
 	@BeforeEach
 	void set_up() {
-		mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+		// 보안 필터 체인을 포함해, 공개 경로의 기존 상태 코드·오류 형식이 그대로인지 함께 확인한다.
+		mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).apply(springSecurity()).build();
 	}
 
 	// ===== 성공 응답: 래퍼 없이 실제 데이터 =====

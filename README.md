@@ -2,7 +2,7 @@
 
 회원가입 없이 이메일만으로 원두를 주문하고, 관리자가 상품과 주문·배송 상태를 관리하는 웹 서비스입니다.
 
-> **현재 단계: 환경 세팅 완료 (초기 환경 구성, 공통 응답·예외 처리·CORS, 공통 엔티티)**
+> **현재 단계: 환경 세팅 완료 (초기 환경 구성, 공통 응답·예외 처리·CORS, 공통 엔티티) + 관리자 인증 백엔드 구현 (`feature/admin-auth`, 리뷰 전)**
 > 이 문서의 비즈니스 규칙·ERD·API 목록은 **후속 개발 기준**입니다. 상품·주문 업무 API는 아직 구현되지 않았습니다.
 > 지금까지 구현된 것은 [3. 주요 기능과 구현 현황](#3-주요-기능과-구현-현황)에서 ✅로 표시한 항목뿐입니다.
 
@@ -115,7 +115,9 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 | 상품 등록·수정·논리 삭제 | ⬜ |
 | 주문 목록 조회 | ⬜ |
 | 배송 상태 자동 전환 스케줄러 | ⬜ |
-| 관리자 인증 | ⬜ (방식 미확정) |
+| 관리자 로그인 API (`POST /api/admin/login`, 비밀번호 → 토큰) | 🟨 |
+| 관리자 API 토큰 검사 (`/api/admin/**` Bearer 토큰 보호, 만료) | 🟨 |
+| 관리자 로그인 화면·토큰 저장 (React) | ⬜ (연동 예시만 [7-5](#7-5-관리자-인증)에 문서화) |
 
 ### 공통
 
@@ -123,7 +125,7 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 |---|---|
 | 프론트·백엔드 API 연동 (브라우저에서 실제 API 호출) | ⬜ (CORS만 설정됨, 연동 미확인) |
 
-> ⚠️ 현재 `/admin/*` 화면은 **URL로 화면만 구분**할 뿐 인증·권한 검사가 없습니다. 누구나 접근할 수 있습니다.
+> ⚠️ **백엔드** `/api/admin/**`는 관리자 토큰으로 보호됩니다(🟨, 리뷰 전). 하지만 **React** `/admin/*` 화면은 아직 로그인 화면이 없어 **URL로 화면만 구분**하며, 누구나 화면을 열 수 있습니다. 화면을 숨기는 것과 서버의 권한 검사는 별개이며, 데이터 보호는 서버 토큰 검사가 담당합니다.
 
 ---
 
@@ -139,6 +141,7 @@ ORDERED ──(매일 14:30, 배송 예정일이 오늘인 주문)──▶ SHIP
 | ORM | Spring Data JPA / Hibernate ORM | 4.2.0 / 7.4.15.Final |
 | Validation | Hibernate Validator | 9.1.6.Final |
 | Database | H2 | 2.5.252 |
+| Security | Spring Security (spring-boot-starter-security) | 7.2.0 (관리자 토큰 검사, CORS 필터) |
 | 기타 | Lombok | 1.18.48 |
 | Test | JUnit Jupiter (spring-boot-starter-*-test) | 6.1.3 |
 | Frontend | React / React DOM | 19.3.1 |
@@ -170,7 +173,9 @@ flowchart LR
 | Entity | `product.Product`, `order.Order`, `order.OrderItem` ([6-1](#6-1-구현된-엔티티)) |
 | DB | H2 (local 프로필은 `backend/data/`의 파일 DB) |
 | global/error | `GlobalExceptionHandler`가 모든 예외를 `code`/`message` 오류 응답으로 변환 |
-| global/config | `/api/**` CORS 설정, JPA Auditing(Asia/Seoul `Clock`) |
+| global/config | `/api/**` CORS 설정(`CorsConfigurationSource` 하나), JPA Auditing(Asia/Seoul `Clock`) |
+| global/security | Spring Security 필터 체인: CORS 필터 → 관리자 토큰 필터 → `/api/admin/**` 인가. 인증 실패 401 JSON 작성 |
+| admin | 관리자 로그인 API, `ADMIN_PASSWORD` 설정, 메모리 토큰 저장소 ([7-5](#7-5-관리자-인증)) |
 
 > `/api/**` CORS는 설정했지만, 프론트에서 실제 API를 호출하는 **연동은 아직 하지 않았습니다.**
 
@@ -300,11 +305,12 @@ flowchart LR
 
 ### 7-1. 전체 API
 
-API 명세 기준 상품 5개, 주문 6개입니다. **11개 모두 아직 구현되지 않았습니다.**
+API 명세 기준 관리자 인증 1개, 상품 5개, 주문 6개입니다. **관리자 로그인 1개만 구현(🟨 리뷰 전)했고, 상품·주문 11개는 아직 구현되지 않았습니다.**
 요청·응답 필드는 명세가 완성되지 않아 **모두 미확정**입니다. ([14-2. 명세 보완 필요 사항](#14-2-명세-보완-필요-사항) 참고)
 
 | 구분 | 기능 | 사용자 | Method | URL | 성공 코드 | 설명 | 구현 상태 | 상세 명세 링크 |
 |---|---|---|---|---|---|---|---|---|
+| 인증 | 관리자 로그인 | 관리자 | `POST` | `/api/admin/login` | 200 | 비밀번호 확인 후 토큰 발급 ([7-5](#7-5-관리자-인증)) | 🟨 구현·테스트 통과 | — |
 | 상품 | 상품 목록 조회 | 고객 | `GET` | `/api/products` | 200 | 상품 목록 조회 · 요청·응답 미확정 | ⬜ 미구현 | — |
 | 상품 | 상품 상세 조회 | 고객 | `GET` | `/api/products/{productId}` | 200 | 상품 1건 조회 · 요청·응답 미확정 | ⬜ 미구현 | — |
 | 상품 | 상품 등록 | 관리자 | `POST` | `/api/admin/products` | 201 | 상품 등록 · 요청·응답 미확정 | ⬜ 미구현 | — |
@@ -318,7 +324,8 @@ API 명세 기준 상품 5개, 주문 6개입니다. **11개 모두 아직 구�
 | 주문 | 주문 삭제 | 관리자 | `DELETE` | `/api/admin/orders/{orderId}` | 204 | 삭제 방식·허용 상태 **확인 필요** | ⬜ 미구현 | — |
 
 - 상세 명세 링크는 확인된 링크가 없어 비워 두었습니다.
-- `/admin` 경로는 화면·API 구분일 뿐이며 **관리자 인증은 아직 없습니다.**
+- `/api/admin/**`는 로그인 API(`POST /api/admin/login`)를 제외하고 모두 **`Authorization: Bearer {token}`이 필요**합니다. 앞으로 만드는 관리자 API도 `/api/admin/` 아래에 두면 별도 설정 없이 보호됩니다. ([7-5](#7-5-관리자-인증))
+- 고객 API(`/api/products`, `/api/orders` 등)에는 관리자 인증을 요구하지 않습니다.
 - 장바구니 화면 이동은 React 라우팅·프론트 state의 역할이고, `/api/orders`는 주문 생성만 담당하도록 구분합니다.
 
 ### 7-2. 공통 응답
@@ -389,6 +396,7 @@ throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);                       
 - 입력 오류 `message`는 `필드명: 검증 메시지` 형식이며, 여러 개면 쉼표로 이어 붙입니다. (예: `itemName: <검증 메시지>, quantity: <검증 메시지>`) 기본 검증 메시지는 서버 JVM 언어 설정을 따르므로, 고정 문구가 필요하면 DTO 어노테이션에 `message`를 지정합니다.
 - 500 응답은 일반 메시지만 반환하고, 원인과 스택 트레이스는 **서버 로그에만** 남깁니다. SQL·비밀번호·내부 클래스명은 응답에 나오지 않습니다.
 - CORS로 거부된 요청(403)은 예외 처리기를 거치지 않으므로 `code`/`message` 형식이 아닙니다.
+- 관리자 인증 실패(401)는 보안 필터 단계에서 끝나 `@RestControllerAdvice`를 거치지 않지만, `SecurityErrorResponseWriter`가 같은 `code`/`message` 형식으로 작성합니다.
 - `fieldErrors` 등 추가 필드는 사용하지 않습니다.
 
 오류 코드
@@ -396,6 +404,7 @@ throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);                       
 | 코드 | HTTP 상태 | 기본 메시지 | 확정 여부 |
 |---|---|---|---|
 | `INVALID_INPUT` | 400 | 요청 값이 올바르지 않습니다. | 확정 (팀 요청) |
+| `UNAUTHORIZED` | 401 | 관리자 인증에 실패했습니다. | 확정 (관리자 인증 요구사항) |
 | `PRODUCT_NOT_FOUND` | 404 | 상품을 찾을 수 없습니다. | 확정 (팀 정책 예시) |
 | `RESOURCE_NOT_FOUND` | 404 | 요청한 리소스를 찾을 수 없습니다. | 제안 (없는 URL용) |
 | `METHOD_NOT_ALLOWED` | 405 | 지원하지 않는 HTTP 메서드입니다. | 제안 |
@@ -409,12 +418,16 @@ throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);                       
 
 구현 위치: `global/config/CorsConfig.java`, `global/config/CorsProperties.java`
 
+CORS 설정은 `CorsConfigurationSource` 빈 **하나**이고, Spring Security의 `CorsFilter`가 이를 사용합니다. (관리자 인증 도입 때 Spring MVC `CorsRegistry` 방식에서 옮김. 설정 값·환경변수는 그대로)
+필터 단계에서 처리하기 때문에 preflight는 토큰 검사보다 먼저 응답되고, 401 인증 실패 응답에도 허용 Origin의 CORS 헤더가 붙습니다.
+
 | 항목 | 개발 기본값 | 설정 변경 방법 |
 |---|---|---|
 | 허용 Origin | `http://localhost:5173`, `http://127.0.0.1:5173` | 환경변수 `CORS_ALLOWED_ORIGINS`(쉼표 구분)로 **목록 전체를 교체**. 기본값은 `application.properties`의 `app.cors.allowed-origins` |
 | 적용 경로 | `/api/**` | `CorsConfig` 코드 수정 |
 | 허용 메서드 | `GET`, `POST`, `PUT`, `DELETE`, `OPTIONS` | `CorsConfig` 코드 수정 |
-| 허용 요청 헤더 | `Content-Type` | `CorsConfig` 코드 수정 |
+| 허용 요청 헤더 | `Content-Type`, `Authorization` (관리자 인증으로 `Authorization` 추가) | `CorsConfig` 코드 수정 |
+| 노출 응답 헤더 (`exposedHeaders`) | 없음 (토큰은 응답 본문으로 받으므로 불필요) | `CorsConfig` 코드 수정 |
 | credentials | 비활성화 (`Access-Control-Allow-Credentials` 미전송) | 쿠키 인증 도입 시 재검토 |
 | preflight 캐시 | 3600초 | `CorsConfig` 코드 수정 |
 | 와일드카드 `*` | 사용 불가 (`*` 포함 시 서버 기동 실패) | — |
@@ -426,7 +439,153 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 .\gradlew.bat bootRun
 ```
 
-> ⚠️ **CORS는 인증·권한 검사가 아닙니다.** 브라우저가 다른 출처의 응답을 읽어도 되는지만 정하는 규칙이며, curl·Postman 같은 비브라우저 요청은 막지 않습니다. 관리자 API 보호는 별도의 관리자 인증(미확정)으로 해결해야 합니다.
+> ⚠️ **CORS는 인증·권한 검사가 아닙니다.** 브라우저가 다른 출처의 응답을 읽어도 되는지만 정하는 규칙이며, curl·Postman 같은 비브라우저 요청은 막지 않습니다. 관리자 API 보호는 [7-5. 관리자 인증](#7-5-관리자-인증)의 토큰 검사가 담당합니다.
+
+| 구분 | CORS 거부 | 관리자 인증 실패 |
+|---|---|---|
+| 판단 기준 | 요청의 `Origin`·메서드·요청 헤더가 허용 목록에 있는가 | `Authorization: Bearer {token}`이 서버가 발급한 유효 토큰인가 |
+| 처리 위치 | `CorsFilter` (먼저 실행) | 관리자 토큰 필터 → 인가 단계 (CORS 통과 후) |
+| 응답 | 403, 본문 `Invalid CORS request` (`code`/`message` 형식 아님), CORS 헤더 없음 | 401, `{"code":"UNAUTHORIZED",...}`, 허용 Origin이면 CORS 헤더 포함 |
+| 막는 대상 | 브라우저의 교차 출처 호출만 (curl 등은 막지 않음) | 모든 클라이언트 |
+
+### 7-5. 관리자 인증
+
+> 상태: 🟨 백엔드 구현·테스트 통과, 리뷰·머지 전 (`feature/admin-auth`). React 로그인 화면은 **미구현**입니다.
+> 구현 위치: `admin/` (로그인 API·설정·토큰 저장소), `global/security/` (보안 필터 체인)
+
+#### 로그인 API
+
+`POST /api/admin/login` · `Content-Type: application/json`
+
+```json
+{ "password": "admin" }
+```
+
+| 상황 | HTTP 상태 | 응답 본문 |
+|---|---|---|
+| 비밀번호 일치 | 200 | `{"token":"<43자 URL-safe 문자열>"}` (래퍼 없음, 비밀번호 미포함) |
+| `password` 누락·`null`·빈 문자열·공백만 | 400 | `{"code":"INVALID_INPUT","message":"password: 비밀번호를 입력해 주세요."}` |
+| `password`가 문자열이 아님 (숫자·boolean·배열·객체) | 400 | `{"code":"INVALID_INPUT","message":"요청 본문이 없거나 JSON 형식이 올바르지 않습니다."}` |
+| 잘못된 JSON·본문 없음 | 400 | 위와 같음 |
+| JSON이 아닌 Content-Type | 415 | `{"code":"UNSUPPORTED_MEDIA_TYPE",...}` (기존 정책) |
+| 비밀번호 불일치 | 401 | `{"code":"UNAUTHORIZED","message":"관리자 인증에 실패했습니다."}` |
+
+- 위 요청 예시는 **local 프로필의 기본 관리자 비밀번호 `admin`**을 사용합니다. `ADMIN_PASSWORD`를 설정했다면 해당 값으로 요청합니다.
+- 비밀번호는 입력 문자열 **그대로** 비교합니다. 앞뒤 공백 제거·대소문자 변환을 하지 않습니다. (공백만 있는 값은 입력 누락으로 400)
+- 숫자 `123`을 `"123"`으로 바꾸는 Jackson 기본 변환을 이 필드에서는 막았습니다.
+- 노션 명세 예시는 `success`/`data` 래퍼를 쓰지만, **팀 결정(래퍼 없이 실제 데이터 반환, [7-2](#7-2-공통-응답))을 유지**했습니다. → [14-2](#14-2-명세-보완-필요-사항)에 불일치 기록
+
+#### 보호 경로와 인증 제외
+
+| 경로 | 인증 | 비고 |
+|---|---|---|
+| `POST /api/admin/login` (정확히 이 경로·메서드) | 불필요 | `/api/admin/login/**`, `/api/admin/login/`, `GET /api/admin/login`은 제외 대상이 **아님** → 토큰 없으면 401 |
+| `/api/admin`, `/api/admin/**` (모든 메서드) | **필요** | 없는 관리자 경로도 토큰이 없으면 404가 아니라 401 |
+| CORS preflight (`OPTIONS` + `Origin` + `Access-Control-Request-Method`) | 불필요 | `CorsFilter`가 응답하고 끝내며 컨트롤러는 실행되지 않음. preflight가 아닌 일반 `OPTIONS`는 인증 필요 |
+| 그 밖의 경로 (`/api/products`, `/api/orders` 등 고객 API) | 불필요 | 기존 404·405·415 처리 그대로 |
+
+요청 헤더 형식: `Authorization: Bearer {token}`
+
+다음은 모두 **401 / `UNAUTHORIZED`** 이며 응답에 `WWW-Authenticate: Bearer` 헤더가 붙습니다.
+
+| 경우 | 예 |
+|---|---|
+| 헤더 없음 | — |
+| 토큰 없음 | `Bearer`, `Bearer ` |
+| 다른 인증 방식·형식 오류 | `Basic ...`, `Token ...`, 토큰만 단독, 공백 두 칸, 뒤 공백, `Authorization` 헤더 2개 |
+| 서버가 발급하지 않은 토큰 | 임의 문자열, 발급 토큰을 한 글자 바꾼 값 |
+| 만료된 토큰 | 발급 후 유효 시간이 지난 토큰 |
+
+- 토큰은 **헤더로만** 받습니다. URL·쿼리 파라미터(`?token=`)·요청 본문의 토큰은 무시합니다.
+- 인증 방식 이름 `Bearer`는 대소문자를 구분하지 않습니다(`bearer`도 허용, RFC 7235).
+- 인증을 통과한 뒤 발생한 업무 오류(400·404·409·500, 없는 경로 404, 405)는 **원래 상태 코드 그대로** 응답합니다. 401로 바뀌지 않습니다.
+
+#### 환경변수·설정
+
+| 설정 키 | 환경변수 | 필수 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `app.admin.password` | `ADMIN_PASSWORD` | local 프로필: 선택 / 그 외: **필수** | local 프로필만 `admin` (개발 편의), 그 외 없음 | 관리자 비밀번호. local 외 프로필에서 없거나 빈 값(공백만 포함)이면 **서버 시작 실패** |
+| `app.admin.token-ttl` | `APP_ADMIN_TOKEN_TTL` | 선택 | `1h` | 토큰 유효 시간 (**팀 확정 전 임시값**). `30m`, `2h` 형식. 0 이하이면 시작 실패 |
+| `app.admin.max-active-tokens` | `APP_ADMIN_MAX_ACTIVE_TOKENS` | 선택 | `100` | 메모리에 보관할 유효 토큰 최대 수. 0 이하이면 시작 실패 |
+
+- **local 프로필(기본 실행)은 `ADMIN_PASSWORD`가 없으면 비밀번호 `admin`으로 로그인**합니다 (`application-local.properties`). 개발 편의용이므로 배포 환경에서는 local 프로필을 쓰지 말고 반드시 `ADMIN_PASSWORD`를 설정합니다.
+- 실제(배포용) 비밀번호는 코드·Git·README·프론트 `VITE_` 환경변수에 넣지 않습니다. 우회 비밀번호는 없습니다.
+- 비밀번호는 설정 객체 `toString`, 오류 메시지, 로그에 나오지 않습니다. (설정 오류 메시지는 값 없이 키 이름만 안내)
+- 테스트는 `src/test/resources/application-test.properties`의 **테스트 전용 값**을 씁니다.
+- Spring Boot 기본 사용자(`user`/생성 비밀번호 로그 출력)는 비활성화했습니다.
+
+#### 토큰 방식과 제한
+
+| 항목 | 내용 |
+|---|---|
+| 형식 | 불투명 토큰(opaque token). JWT 아님. `SecureRandom` 32바이트 → URL-safe Base64(패딩 없음, 43자). 비밀번호·고정 문자열에서 파생하지 않음 |
+| 검증 | 서버가 발급해 메모리에 보관 중이고 만료 전인 토큰만 허용. 저장소에는 토큰 원문 대신 SHA-256 해시 보관 |
+| 만료 | 발급 시각 + `token-ttl`. 만료 시각 **바로 전까지 유효**, 만료 시각부터 401. 시간은 Asia/Seoul `Clock` 빈 기준 (테스트에서 시계 이동으로 검증) |
+| 여러 로그인 | 새 로그인은 기존 토큰을 덮어쓰지 않음. 각 토큰이 자기 만료 시각까지 유효 |
+| 정리·상한 | 발급 시 만료 토큰 정리, 검증 시 만료 토큰 즉시 제거. `max-active-tokens`를 넘으면 **가장 먼저 만료될(오래된) 토큰부터 제거** |
+| 동시성 | `ConcurrentHashMap` + 발급 구간 동기화. 동시 로그인에서도 상한 유지 (테스트로 확인) |
+| 세션 | 서버 세션·쿠키를 만들지 않음 (`STATELESS`, `Set-Cookie` 없음 확인) |
+| 로그 | 토큰·`Authorization` 헤더·비밀번호를 로그에 남기지 않음 (테스트로 확인) |
+| 로그아웃 | 명세에 없어 **API 없음**. 프론트에서 토큰을 지우면 그 브라우저에서는 로그아웃이지만, 서버의 토큰은 만료 시각까지 유효 |
+
+⚠️ 메모리 저장소의 제한
+
+- **서버를 재시작하면 기존 토큰이 모두 무효**가 됩니다. 관리자는 다시 로그인해야 합니다.
+- 서버가 **여러 인스턴스**이면 인스턴스끼리 토큰을 공유하지 못합니다. 그때는 공유 토큰 저장소가 필요합니다.
+- 이번 범위에서는 Redis·DB 토큰 저장소·JWT·refresh token을 추가하지 않았습니다.
+
+#### CSRF·세션 설정 이유
+
+- **CSRF 보호는 비활성화**했습니다. CSRF는 브라우저가 쿠키·세션을 **자동으로** 붙이는 점을 악용하는 공격입니다. 이 API는 세션·쿠키 인증을 쓰지 않고, 프론트 코드가 **직접** 넣는 `Authorization` 헤더만 인증 수단이라, 다른 사이트가 사용자 몰래 인증된 요청을 만들 수 없습니다.
+- 앞으로 쿠키 기반 인증으로 바꾸면 CSRF 보호를 다시 켜야 합니다.
+- 폼 로그인·HTTP Basic·기본 로그인 화면·로그아웃 페이지는 사용하지 않습니다.
+
+#### 프론트 연동 예시 (React 화면은 미구현, 담당자 참고용)
+
+명세에 따라 토큰은 `sessionStorage`에 저장합니다. 브라우저 탭을 닫으면 사라집니다.
+
+```js
+// src/api/adminAuth.js (예시)
+const API_BASE_URL = 'http://localhost:8080'
+const TOKEN_KEY = 'adminToken'
+
+export async function login_admin(password) {
+  const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),           // 비밀번호는 요청에만 쓰고 저장하지 않음
+  })
+  if (!response.ok) {
+    const error = await response.json()          // { code, message }
+    throw new Error(error.message)
+  }
+  const { token } = await response.json()        // 래퍼 없이 { token }
+  sessionStorage.setItem(TOKEN_KEY, token)
+}
+
+// 관리자 API 호출에만 사용. 고객 API(/api/products, /api/orders)는 일반 fetch로 호출하고 토큰을 붙이지 않음
+export async function fetch_admin(path, options = {}) {
+  const token = sessionStorage.getItem(TOKEN_KEY)
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { ...options.headers, Authorization: `Bearer ${token}` },
+  })
+  if (response.status === 401) {
+    sessionStorage.removeItem(TOKEN_KEY)         // 만료·무효 토큰 제거
+    window.location.assign('/admin/login')       // 로그인 다시 요청 (경로는 화면 구현 시 결정)
+    throw new Error('관리자 로그인이 필요합니다.')
+  }
+  return response
+}
+```
+
+| 규칙 | 설명 |
+|---|---|
+| 저장 | 로그인 성공 응답의 `token`만 `sessionStorage`에 저장. **비밀번호는 저장하지 않음** |
+| 전송 | `/api/admin/**` 호출에만 `Authorization: Bearer {token}` 추가. 고객 API에는 붙이지 않음 |
+| 401 처리 | 저장된 토큰을 지우고 로그인 화면으로 이동 |
+| 화면 숨김 ≠ 권한 | 토큰 유무로 관리자 메뉴를 숨기는 것은 사용자 편의일 뿐이고, 실제 권한 검사는 서버가 합니다 |
+| 보안 주의 | `sessionStorage`는 JavaScript로 읽을 수 있어 **XSS에 안전한 저장소가 아닙니다.** XSS가 생기면 토큰이 탈취될 수 있으므로 `dangerouslySetInnerHTML` 등 사용자 입력을 HTML로 넣는 코드를 피해야 합니다 |
 
 ---
 
@@ -446,11 +605,13 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 │       │   ├── BeanOrderApplication.java          # 시간대 Asia/Seoul 설정
 │       │   ├── product/                            # Product, Origin (엔티티만, API 없음)
 │       │   ├── order/                              # Order, OrderItem, OrderStatus (엔티티만, API 없음)
+│       │   ├── admin/                              # AdminLoginController, AdminAuthService, AdminTokenStore, AdminAuthProperties 등 (관리자 로그인·토큰)
 │       │   └── global/
 │       │       ├── config/                         # CorsConfig, CorsProperties, JpaAuditingConfig
-│       │       └── error/                          # ErrorResponse, ErrorCode, BusinessException, GlobalExceptionHandler, DomainPreconditions
+│       │       ├── error/                          # ErrorResponse, ErrorCode, BusinessException, GlobalExceptionHandler, DomainPreconditions
+│       │       └── security/                       # SecurityConfig, AdminTokenAuthenticationFilter, SecurityErrorResponseWriter
 │       ├── main/resources/
-│       │   ├── application.properties              # 기본 프로필 local, 포트 8080, CORS 허용 Origin
+│       │   ├── application.properties              # 기본 프로필 local, 포트 8080, CORS 허용 Origin, 관리자 인증 설정
 │       │   └── application-local.properties        # H2 파일 DB, ddl-auto=update
 │       └── test/
 │           ├── java/com/cafe/beanorder/
@@ -458,12 +619,13 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 │           │   ├── product/ProductEntityTest.java  # 상품 저장·Auditing·논리 삭제·입력 조건
 │           │   ├── order/OrderEntityTest.java      # 주문·상세 관계, 스냅샷, 금액, FK 삭제 규칙
 │           │   ├── support/MutableTestClock.java   # 테스트용 시간 제어 Clock
+│           │   ├── admin/                          # 관리자 인증 통합·실서버·설정 실패·토큰 저장소 테스트
 │           │   └── global/
 │           │       ├── dbcheck/                    # 테스트 전용 엔티티·Repository·DB 연결 테스트
-│           │       ├── support/                    # 테스트 전용 컨트롤러 (운영 jar 미포함)
-│           │       ├── error/                      # 공통 응답·예외 처리 MockMvc 테스트
-│           │       └── config/                     # CORS MockMvc 테스트
-│           └── resources/application-test.properties  # H2 인메모리, ddl-auto=create-drop
+│           │       ├── support/                    # 테스트 전용 컨트롤러 (공개·관리자, 운영 jar 미포함)
+│           │       ├── error/                      # 공통 응답·예외 처리 MockMvc 테스트 (보안 필터 포함)
+│           │       └── config/                     # CORS MockMvc 테스트 (보안 필터 포함)
+│           └── resources/application-test.properties  # H2 인메모리, ddl-auto=create-drop, 테스트 전용 관리자 비밀번호
 ├── docs/
 │   └── images/erd.png                              # ERD 이미지
 ├── frontend/
@@ -544,6 +706,7 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 | 미확인 | 환경 세팅 | React 프로젝트 생성 및 라우팅 | 미확인 | 11.26 ※ | 11.26 ※ | 완료 (PR #1 리뷰 후 `dev` 머지) | `frontend/` |
 | 2.3 | 환경 세팅 | 공통 응답·예외 처리·CORS 설정 | D | 11.27 | 11.27 | 완료 (PR #2 `dev` 머지) | 공통 모듈 (`global/error`, `global/config`) |
 | 2.4 | 환경 세팅 | 공통 엔티티 구성 (Product, Order, OrderItem) | 미확인 | 미확인 | 미확인 | 완료 (PR #4 `dev` 머지) | `product`·`order` 엔티티, `JpaAuditingConfig` |
+| 미확인 | 관리자 | 관리자 로그인 API·관리자 API 토큰 검사 | 미확인 | 미확인 | 미확인 | 구현·테스트 통과, PR 전 (`feature/admin-auth`) | `admin/`, `global/security/` |
 
 ※ WBS 번호·담당·계획 일정이 확인되지 않아 실제 작업일을 적었습니다.
 
@@ -575,8 +738,18 @@ $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https:/
 ```powershell
 cd backend
 Copy-Item config\local-db.properties.example config\local-db.properties   # 최초 1회, 비밀번호 수정
-.\gradlew.bat build     # 빌드 + 테스트 (test 프로필, H2 인메모리)
-.\gradlew.bat bootRun   # local 프로필로 실행 (기본 프로필)
+.\gradlew.bat build     # 빌드 + 테스트 (test 프로필, H2 인메모리, 테스트 전용 관리자 비밀번호 사용)
+.\gradlew.bat bootRun   # local 프로필로 실행 (기본 프로필). 관리자 비밀번호는 admin
+```
+
+- **로컬 기본 관리자 비밀번호는 `admin`입니다.** local 프로필은 `ADMIN_PASSWORD`가 없으면 이 값을 사용합니다. 다른 값을 쓰려면 실행 전에 `$env:ADMIN_PASSWORD = "<원하는 값>"`을 설정합니다. 환경변수를 빈 값이나 공백만 있는 값으로 명시하면 설정 검증에 실패할 수 있습니다.
+- local 외 프로필에서 `ADMIN_PASSWORD`가 없거나 비어 있으면 `APPLICATION FAILED TO START`와 함께 `환경변수 ADMIN_PASSWORD 를 설정한 뒤 서버를 시작하세요.` 메시지가 나오고 실행이 중단됩니다.
+
+관리자 로그인 확인 예시 (PowerShell, 서버 실행 중)
+
+```powershell
+$login = Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/admin/login -ContentType 'application/json' -Body '{"password":"admin"}'
+Invoke-WebRequest -Uri http://localhost:8080/api/admin/orders -Headers @{ Authorization = "Bearer $($login.token)" }   # 관리자 API 미구현이라 현재는 404 (토큰 없으면 401)
 ```
 
 | 항목 | 값 |
@@ -651,6 +824,30 @@ test 프로필 H2 인메모리 DB와 `EntityManager`로 검증했습니다. 물�
 | JPQL | 엔티티 이름 `Order`로 조회 가능 |
 | local 프로필 실행 | `ddl-auto=update`로 세 테이블 생성, FK 삭제 규칙 동일 확인 (기존 데이터 삭제 없음) |
 
+### 관리자 인증 검증 결과 (`feature/admin-auth`, 2026-11-26, Windows 11)
+
+실제 Spring Security 필터 체인을 포함한 MockMvc(`springSecurity()`)와 실제 내장 Tomcat(RANDOM_PORT)으로 검증했습니다. 관리자 업무 API가 아직 없어 `src/test`에만 있는 테스트 컨트롤러(`/api/admin/test-support/items`)로 보호 동작을 확인했습니다.
+
+| 항목 | 결과 |
+|---|---|
+| `gradlew.bat test` | 성공, **테스트 87개 통과** (기존 48개 + 관리자 인증 39개). 기존 CORS·공통 예외 테스트도 보안 필터 포함으로 바꿔 통과 |
+| 로그인 성공 | 200, 43자 URL-safe `token`, `success`/`data`/`password` 없음, 응답에 비밀번호 문자열 없음 |
+| 비밀번호 불일치 | 대소문자 다름·앞뒤 공백·일부 누락 포함 401 `UNAUTHORIZED` |
+| 입력 오류 | 누락·`null`·빈 문자열·공백·탭/줄바꿈, 숫자·boolean·배열·객체·실수, 잘못된 JSON·`null` 본문·빈 본문 모두 400 `INVALID_INPUT`. `text/plain`은 415 유지 |
+| 잘못된 설정 시 시작 실패 | test 프로필에서 `app.admin.password`를 빈 값·공백으로 명시하거나 TTL `0s`·`-1m`, 최대 토큰 0을 지정하면 시작 실패. 오류 메시지·로그에 비밀번호 값 없음. local에서 `ADMIN_PASSWORD`를 생략하면 기본값 `admin`을 사용하므로 이 실패 조건에 해당하지 않음 |
+| 인증 없는 관리자 접근 | `/api/admin`, `/api/admin/`, 없는 관리자 경로, `GET /api/admin/login`, `POST /api/admin/login/extra`·`/api/admin/login/`, 일반 `OPTIONS` 모두 401. 컨트롤러 실행 0회 |
+| 잘못된 토큰·헤더 | 13가지 형식(빈 값, `Bearer`만, 공백 두 칸, `Basic`, 토큰 단독, 변조·미발급 토큰 등)과 헤더 2개 → 401. 쿼리·본문 토큰 무시 |
+| 유효 토큰 | 200 (`bearer` 소문자도 허용) |
+| 만료 경계 | 시계 이동: TTL−1ns 유효, TTL 정각 401, 시계를 되돌려도 만료 토큰 재사용 불가 |
+| 로그인 두 번 | 두 토큰 모두 유효, 서로 다름, 각자 만료 시각 적용 |
+| 고객 API | 토큰 없이·잘못된 토큰이 있어도 200. 없는 `/api/products`·`/api/orders` 404, 405 유지 |
+| 인증 후 업무 오류 | 400·404(`PRODUCT_NOT_FOUND`·`RESOURCE_NOT_FOUND`)·405·409·500 원래 상태 유지. 실제 서버에서 컨테이너 오류 처리(`sendError(409)`)도 409 유지 |
+| CORS | `Authorization` 포함 preflight 200(관리자 경로·로그인), 401 응답에 `Access-Control-Allow-Origin` 포함, 비허용 Origin은 유효 토큰이 있어도 403, 다른 미허용 헤더(`x-custom-header`)는 기존대로 403 |
+| 토큰 저장소 | 1000개 발급 중복 없음, 만료 정리, 상한 초과 시 오래된 토큰 제거, 8스레드 동시 발급에서 상한 유지 |
+| 보안 구성 | 토큰 필터가 필터 체인에 1번만 등록(빈 아님), 기본 사용자 없음, `Set-Cookie` 없음, 로그에 비밀번호·토큰·생성 비밀번호 출력 없음 |
+| 실행 jar (local 프로필, 인메모리 DB로 수동 확인) | `ADMIN_PASSWORD` 없이 실행 시 기본 비밀번호 `admin` 로그인 200, `1` 등 다른 값 401. 명시적 비밀번호 설정 실행 기록: 잘못된 비밀번호 401, 로그인 토큰 43자, 토큰 없는 `/api/admin/orders` 401 + CORS 헤더 + `WWW-Authenticate`, 토큰 있으면 404(API 미구현), preflight 200, `/api/products` 404, 로그에 비밀번호·토큰 없음 |
+| 프론트·백엔드 연동 | **미확인** (React 로그인 화면 미구현) |
+
 ---
 
 ## 14. 남은 결정 사항
@@ -659,7 +856,13 @@ test 프로필 H2 인메모리 DB와 `EntityManager`로 검증했습니다. 물�
 
 | 항목 | 현재 상태 |
 |---|---|
-| 관리자 인증 방식 | **미확정** (현재 `/admin/*`는 화면 구분만, 인증 없음) |
+| 관리자 인증 방식 | 비밀번호(`ADMIN_PASSWORD`) → 서버 메모리 불투명 Bearer 토큰으로 **구현** (리뷰 전). React 로그인 화면은 미구현 |
+| 관리자 토큰 유효 시간 | **미확정** (임시 1시간, `app.admin.token-ttl`로 변경 가능) |
+| 관리자 토큰 최대 보관 수와 초과 시 처리 | **미확정** (임시 100개, 초과 시 가장 오래된 토큰 제거) |
+| 관리자 로그아웃(서버 토큰 폐기) API | 명세에 없어 **미구현** (프론트에서 토큰 삭제만 가능) |
+| 로그인 실패 횟수 제한(무차별 대입 방지) | **미확정·미구현** |
+| 배포 환경의 `ADMIN_PASSWORD` 관리 방법·공유 채널 | **미확정** |
+| 여러 서버 인스턴스 운영 시 토큰 저장소 공유 | **미확정** (현재 단일 서버 메모리) |
 | 관리자의 주문 수정·전체 취소 가능 시점 | **미확정** |
 | 정확히 14:00:00에 접수한 주문의 배송 그룹 | **미확정** |
 | 주문 병합 시 주소 비교에 우편번호 포함 여부와 공백 정규화 | **미확정** |
@@ -685,3 +888,5 @@ test 프로필 H2 인메모리 DB와 `EntityManager`로 검증했습니다. 물�
 | 주문 삭제 | `DELETE /api/admin/orders/{orderId}` → 204 | 실제 삭제인지 논리 삭제인지, 어떤 상태에서 허용되는지 불명. 주문 취소(`CANCELLED`)와 구분 필요하며, 실제 삭제 시 `order_item`도 CASCADE로 삭제됨 | 삭제 방식·허용 상태를 정하고 취소와 구분해 기술 | 미확정 |
 | 고객 이메일별 주문 조회 | 최신 API 목록에 없음 | 범위에서 제외한 것인지 누락인지 불명 | 팀 확인 | 미확정 |
 | 오류 코드 | 상품 예시 `PRODUCT_NOT_FOUND`만 있음 | 주문 관련 오류 코드 없음 | `ORDER_NOT_FOUND`(404), `ORDER_STATUS_CONFLICT`(409) | 미확정 (제안) |
+| 관리자 로그인 응답 형식 | 노션 예시는 `success`/`data` 래퍼 | 팀 결정(래퍼 없이 실제 데이터 반환)과 불일치 | 팀 결정 유지: 성공 `{"token":"..."}`, 실패 `{"code","message"}`. 노션 예시 수정 필요 | 코드는 팀 결정 기준으로 구현, 노션 수정은 미반영 |
+| 관리자 토큰 형식·유효 시간 | Bearer 토큰만 지정, JWT·만료 시간 언급 없음 | 토큰 방식·수명 불명 | 서버 메모리 불투명 토큰, 임시 1시간 ([7-5](#7-5-관리자-인증)) | 임시 (팀 확정 필요) |
