@@ -114,6 +114,36 @@ class ProductApiTest {
 			.andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
 	}
 
+	// ===== 관리자 조회 =====
+
+	@Test
+	void admin_list_includes_deleted_products() throws Exception {
+		adminMockMvc.perform(get(ADMIN_PRODUCTS_URL))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.length()").value(2))
+			.andExpect(jsonPath("$[0].productId").value(activeProduct.getId()))
+			.andExpect(jsonPath("$[0].isDeleted").value(false))
+			.andExpect(jsonPath("$[1].productId").value(deletedProduct.getId()))
+			.andExpect(jsonPath("$[1].isDeleted").value(true))
+			.andExpect(jsonPath("$[0].createdAt").exists())
+			.andExpect(jsonPath("$[0].updatedAt").exists());
+	}
+
+	@Test
+	void admin_detail_returns_deleted_product() throws Exception {
+		adminMockMvc.perform(get(ADMIN_PRODUCTS_URL + "/" + deletedProduct.getId()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.productName").value("브라질 산토스"))
+			.andExpect(jsonPath("$.isDeleted").value(true));
+	}
+
+	@Test
+	void admin_detail_of_missing_product_returns_404() throws Exception {
+		adminMockMvc.perform(get(ADMIN_PRODUCTS_URL + "/999999"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
+	}
+
 	// ===== 등록 =====
 
 	@Test
@@ -207,6 +237,11 @@ class ProductApiTest {
 			.andExpect(status().isNotFound());
 		mockMvc.perform(get(PRODUCTS_URL))
 			.andExpect(jsonPath("$.length()").value(0));
+
+		// 관리자에게는 삭제 표시와 함께 보인다
+		adminMockMvc.perform(get(ADMIN_PRODUCTS_URL + "/" + activeProduct.getId()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.isDeleted").value(true));
 	}
 
 	@Test
@@ -229,6 +264,8 @@ class ProductApiTest {
 	void admin_apis_without_token_return_401_and_change_nothing() throws Exception {
 		String productUrl = ADMIN_PRODUCTS_URL + "/" + activeProduct.getId();
 
+		expect_unauthorized(mockMvc.perform(get(ADMIN_PRODUCTS_URL)));
+		expect_unauthorized(mockMvc.perform(get(productUrl)));
 		expect_unauthorized(mockMvc.perform(
 			post(ADMIN_PRODUCTS_URL).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY)));
 		expect_unauthorized(mockMvc.perform(

@@ -3,7 +3,7 @@ package com.cafe.beanorder.product;
 import java.time.LocalDateTime;
 
 /**
- * 관리자용 상품 응답 (등록·수정 응답).
+ * 관리자용 상품 응답 (목록·상세·등록·수정 공통).
  * 고객 응답 필드 + isDeleted, createdAt, updatedAt.
  */
 public record AdminProductResponse(
